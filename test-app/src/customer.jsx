@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from "react";
-import noImage from "./assets/no-image.svg";
 
 export default function Customer() {
   const categories = useMemo(
@@ -89,12 +88,10 @@ export default function Customer() {
                   ) : (
                     // Empty image placeholder (still white)
                     <div className="flex h-full w-full items-center justify-center bg-white">
-                        <img
-                        src={noImage}
+                      <img
+                        src="https://via.placeholder.com/150"
                         alt="No image available"
-                        className="h-24 w-24 opacity-60"
-                        loading="lazy"
-                        />
+                      />
                     </div>
                   )}
                 </div>

@@ -1,16 +1,61 @@
-# React + Vite
+# Cozy Coffee Admin (`test-app`)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Quick Setup
 
-Currently, two official plugins are available:
+1. Install dependencies:
+   - `npm install`
+2. Create `.env` in `test-app` (or repo root, based on current Vite envDir):
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-public-key
+VITE_TX_REFERENCE_ID=1
+VITE_TX_CASHIER_ID=1
+```
 
-## React Compiler
+3. Run app:
+   - `npm run dev`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Auth + Admin Access Model
 
-## Expanding the ESLint configuration
+- Promotions page is public by default.
+- Admin inventory is shown only when:
+  - user is signed in, and
+  - `public.user_roles.role = 'admin'` for that auth user.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Database / RLS Setup
+
+Run `test-app/supabase/admin_rls_setup.sql` in Supabase SQL Editor.
+
+It will:
+- create `public.user_roles`,
+- add `public.is_admin(uuid)` helper function,
+- enable RLS on `inventory`, `inventory_transactions`, `user_roles`,
+- enforce admin-only write operations for inventory modules.
+
+After running that SQL, assign at least one admin:
+
+```sql
+insert into public.user_roles (user_id, role)
+values ('YOUR_AUTH_USER_UUID', 'admin')
+on conflict (user_id) do update set role = excluded.role;
+```
+
+For day-to-day admin changes, use:
+- `test-app/supabase/admin_role_management.sql`
+
+To prevent accidental lockout (removing the last admin), run once:
+- `test-app/supabase/admin_last_admin_guard.sql`
+
+Emergency rollback (if you intentionally need to disable that protection):
+- `test-app/supabase/admin_last_admin_guard_rollback.sql`
+
+## Google Auth Setup (Supabase)
+
+1. Supabase Dashboard -> Authentication -> Providers -> Google -> Enable.
+2. In Google Cloud Console, create OAuth client credentials.
+3. Add this redirect URI in Google Cloud:
+   - `https://<your-project-ref>.supabase.co/auth/v1/callback`
+4. Put Google Client ID/Secret into Supabase Google provider settings.
+5. In Supabase URL configuration, add local redirect:
+   - `http://localhost:5173`
