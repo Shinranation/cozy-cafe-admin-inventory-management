@@ -35,89 +35,108 @@ export default function Login({ onClose, onAdminAccess, adminSignedIn, signedInE
     if (!error && onAdminAccess) onAdminAccess()
   }
 
-  async function signUpWithEmail() {
-    if (!supabase) return
-    setBusy(true)
-    setStatus(null)
-    const { error } = await supabase.auth.signUp({ email, password })
-    setBusy(false)
-    setStatus(error ? error.message : 'Sign-up success. Check your email for verification.')
-  }
-
   return (
-    <main style={{ maxWidth: 520, margin: '0 auto', padding: '24px 16px', background: '#fff' }}>
-      <h2>Admin Login</h2>
-      <p>Promotions stays public. Admin tools appear only after admin login.</p>
+    <main className="min-h-screen bg-[#FAF3E7] flex items-center justify-center p-4 font-sans text-gray-800">
+      
+      <div className="bg-white p-12 rounded-[2.5rem] shadow-sm border border-[#D79A6F] max-w-lg w-full relative">
+        
+        <h2 className="text-4xl font-extrabold text-center text-gray-800 mb-10">
+          Admin Authentication
+        </h2>
 
-      {!configured && <p>Missing Supabase env configuration.</p>}
+        {!configured && (
+          <p className="text-center text-red-500 mb-6 bg-red-50 p-3 rounded-xl text-sm">
+            Missing Supabase env configuration.
+          </p>
+        )}
 
-      {signedInEmail && (
-        <p>
-          Signed in as: {signedInEmail}
-          {adminSignedIn ? ' (admin access granted)' : ' (signed in but not an admin)'}
-        </p>
-      )}
+        <form className="space-y-6">
+          <div className="space-y-1.5">
+            <label className="font-bold text-gray-700 ml-1">Username</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-5 py-3.5 rounded-full border border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#D79A6F]/50 transition"
+              required
+            />
+          </div>
 
-      {signedInEmail && !adminSignedIn && (
-        <p>
-          Access denied for Admin Inventory. Ask an existing admin to add your user ID to
-          <code> public.user_roles </code>with role
-          <code> admin</code>.
-        </p>
-      )}
+          <div className="space-y-1.5 relative">
+            <label className="font-bold text-gray-700 ml-1">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-5 py-3.5 rounded-full border border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#D79A6F]/50 transition"
+              required
+            />
+            <a href="#" className="absolute right-4 bottom-[-24px] text-xs font-semibold text-gray-600 hover:text-[#D79A6F]">
+              Forgot Password?
+            </a>
+          </div>
 
-      <div>
-        <button
-          type="button"
-          onClick={signInWithGoogle}
-          disabled={!configured || busy}
-        >
-          Sign in with Google
-        </button>
+          <div className="h-2"></div>
 
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ display: 'block', marginTop: 8, marginBottom: 8, width: '100%' }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ display: 'block', marginBottom: 8, width: '100%' }}
-        />
+          <div className="relative text-center my-8">
+            <span className="absolute top-1/2 left-0 right-0 h-[1px] bg-gray-300 transform -translate-y-1/2"></span>
+            <span className="relative z-10 px-3 bg-white text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+              or
+            </span>
+          </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
           <button
             type="button"
-            onClick={signInWithEmail}
-            disabled={!configured || busy || !email || !password}
+            onClick={signInWithGoogle}
+            disabled={!configured || busy}
+            className="w-full flex items-center justify-center gap-3 px-6 py-3 rounded-full border border-gray-400 font-medium text-gray-700 bg-white hover:bg-gray-50 transition-all"
           >
-            Sign-in
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path fill="#4285F4" d="M19.6 10.2c0-.7-.1-1.3-.2-2H10v3.8h5.4c-.2 1.2-.9 2.2-2 3v-2.5h3.2c1.9-1.8 3-4.3 3-7.3z"/>
+              <path fill="#34A853" d="M10 20c2.7 0 5-1 6.7-2.7l-3.2-2.5c-.9.6-2.1 1-3.5 1-2.7 0-5-1.8-5.8-4.2H1.1v2.6C2.8 17.5 6.1 20 10 20z"/>
+              <path fill="#FBBC05" d="M4.2 11.6c-.2-.6-.3-1.2-.3-1.6s.1-1 .3-1.6V5.8H1.1C.4 7.1 0 8.5 0 10s.4 2.9 1.1 4.2l3.1-2.6z"/>
+              <path fill="#EA4335" d="M10 3.8c1.5 0 2.8.5 3.9 1.5l2.8-2.8C15 1 12.7 0 10 0 6.1 0 2.8 2.5 1.1 5.8l3.1 2.6c.8-2.4 3.1-4.2 5.8-4.2z"/>
+            </svg>
+            Sign in with Google
           </button>
-          <button
-            type="button"
-            onClick={signUpWithEmail}
-            disabled={!configured || busy || !email || !password}
-          >
-            Sign-up
-          </button>
+
+          <div className="flex justify-center pt-8">
+            <button
+              type="button"
+              onClick={signInWithEmail}
+              disabled={!configured || busy || !email || !password}
+              className="bg-[#463124] text-white px-16 py-3 rounded-full text-2xl font-black uppercase hover:bg-[#34241a] transition-all active:scale-95 shadow-md"
+            >
+              Log In
+            </button>
+          </div>
+        </form>
+
+        {status && (
+          <p className="text-center text-sm text-gray-700 mt-6 bg-gray-100 p-3 rounded-lg border border-gray-200">
+            {status}
+          </p>
+        )}
+
+        {(signedInEmail || adminSignedIn) && (
+          <div className="mt-8 pt-6 border-t border-gray-100 text-xs text-gray-500 text-center space-y-1">
+             {signedInEmail && <p>Signed in as: <span className="font-medium text-gray-700">{signedInEmail}</span></p>}
+             {adminSignedIn && <p className="text-green-600 font-medium">(admin access granted)</p>}
+          </div>
+        )}
+
+        <div className="mt-12 text-center text-xs space-x-3 text-gray-500">
+            <button type="button" onClick={onClose} className="hover:text-[#D79A6F] underline">
+                Back to Promotions
+            </button>
+            {!adminSignedIn && (
+                <button type="button" onClick={onAdminAccess} className="hover:text-[#D79A6F] underline">
+                    Continue as Guest
+                </button>
+            )}
         </div>
 
-        {status && <p>{status}</p>}
       </div>
-
-      <button type="button" onClick={onClose} style={{ marginTop: 12 }}>
-        Back to Promotions
-      </button>
-      {!adminSignedIn && (
-        <button type="button" onClick={onAdminAccess} style={{ marginTop: 12, marginLeft: 8 }}>
-          Continue to Promotions
-        </button>
-      )}
     </main>
   )
 }
