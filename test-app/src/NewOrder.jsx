@@ -1,26 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, supabaseConfigured, defaultPosCashierId } from './lib/supabaseClient.js'
 
-/** @typedef {{ item_id: number, name: string, price: number, category: string, available_units: number }} MenuItemRow */
-
-function parseRpcJsonArray(data) {
-  if (data == null) return []
-  if (Array.isArray(data)) return data
-  if (typeof data === 'string') {
-    try {
-      const p = JSON.parse(data)
-      return Array.isArray(p) ? p : []
-    } catch {
-      return []
-    }
-  }
-  return []
-}
+/** @typedef {{ item_id: number, name: string, price: number, category: string, availability_status: string }} MenuItemRow */
 
 export default function NewOrder({ onBack, onCancel }) {
   const configured = supabaseConfigured()
   const [items, setItems] = useState(/** @type {MenuItemRow[]} */ ([]))
-  const [menuLoading, setMenuLoading] = useState(true)
+  const [menuLoading, setMenuLoading] = useState(configured)
   const [menuError, setMenuError] = useState(/** @type {string | null} */ (null))
 
   const [activeCategory, setActiveCategory] = useState('All')
@@ -35,31 +21,46 @@ export default function NewOrder({ onBack, onCancel }) {
     if (!supabase) return
     setMenuError(null)
     setMenuLoading(true)
-    const { data, error } = await supabase.rpc('get_menu_for_pos')
+
+    const { data, error } = await supabase
+      .from('menu')
+      .select('item_id,name,price,category,availability_status')
+      .order('category')
+      .order('name')
+
     if (error) {
       setMenuError(error.message)
       setItems([])
       setMenuLoading(false)
       return
     }
-    const raw = parseRpcJsonArray(data)
-    const mapped = raw.map((r) => ({
-      item_id: Number(r.item_id),
-      name: String(r.name ?? ''),
-      price: Number(r.price) || 0,
-      category: String(r.category ?? ''),
-      available_units: Number(r.available_units) || 0,
-    }))
-    setItems(mapped.filter((r) => Number.isFinite(r.item_id) && r.item_id > 0))
+
+    setItems(
+      (data ?? [])
+        .map((r) => ({
+          item_id: Number(r.item_id),
+          name: String(r.name ?? ''),
+          price: Number(r.price) || 0,
+          category: String(r.category ?? ''),
+          availability_status: String(r.availability_status ?? ''),
+        }))
+        .filter(
+          (r) =>
+            Number.isFinite(r.item_id) &&
+            r.item_id > 0 &&
+            r.availability_status.toLowerCase() === 'available',
+        ),
+    )
     setMenuLoading(false)
   }, [])
 
   useEffect(() => {
-    if (!configured || !supabase) {
-      setMenuLoading(false)
-      return
-    }
-    void loadMenu()
+    if (!configured || !supabase) return
+    const timeoutId = window.setTimeout(() => {
+      void loadMenu()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
   }, [configured, loadMenu])
 
   const categories = useMemo(() => {
@@ -98,15 +99,6 @@ export default function NewOrder({ onBack, onCancel }) {
     setConfirmError(null)
     const id = item.item_id
     const cur = qty[id] ?? 0
-    const cap = Math.floor(item.available_units)
-    if (cur + 1 > cap) {
-      setStockMessage(
-        cap <= 0
-          ? `${item.name} is out of stock.`
-          : `Only ${cap} available for ${item.name}. Try a smaller quantity.`,
-      )
-      return
-    }
     setQty((prev) => ({ ...prev, [id]: cur + 1 }))
   }
 
@@ -127,27 +119,39 @@ export default function NewOrder({ onBack, onCancel }) {
     setConfirmError(null)
     setStockMessage(null)
     setConfirmBusy(true)
+
     const p_lines = orderList.map((row) => ({
       menu_item_id: row.id,
       quantity: row.qty,
     }))
-    const { data: orderId, error } = await supabase.rpc('confirm_pos_order', {
+
+    const { error } = await supabase.rpc('confirm_pos_order', {
       p_cashier_id: defaultPosCashierId(),
       p_client_id: null,
       p_guest_display_name: guestDisplayName.trim() || null,
       p_lines,
     })
+
     setConfirmBusy(false)
     if (error) {
       const msg = error.message ?? String(error)
-      setConfirmError(msg.includes('INSUFFICIENT_STOCK') ? msg.replace(/^.*INSUFFICIENT_STOCK:\s*/i, '') : msg)
+      if (msg.includes('NO_RECIPE')) {
+        setConfirmError('One or more menu items do not have linked ingredients yet. Add recipe ingredients in Inventory > Menu Item.')
+      } else if (msg.includes('ARCHIVED_INGREDIENT')) {
+        setConfirmError('One or more menu recipes use archived ingredients. Update the recipe links in Inventory > Menu Item.')
+      } else if (msg.includes('inventory_ingredient_id is null')) {
+        setConfirmError('Order function is outdated. Run the menu_ingredients order SQL migration so orders use recipe ingredients.')
+      } else if (msg.includes('INSUFFICIENT_STOCK')) {
+        setConfirmError(msg.replace(/^.*INSUFFICIENT_STOCK:\s*/i, ''))
+      } else {
+        setConfirmError(msg)
+      }
       return
     }
-    if (orderId != null) {
-      setQty({})
-      setGuestDisplayName('')
-      onBack?.()
-    }
+
+    setQty({})
+    setGuestDisplayName('')
+    onBack?.()
   }
 
   return (
@@ -229,8 +233,6 @@ export default function NewOrder({ onBack, onCancel }) {
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
               {visibleItems.map((item) => {
                 const count = qty[item.item_id] ?? 0
-                const cap = Math.floor(item.available_units)
-
                 return (
                   <article
                     key={item.item_id}
@@ -248,15 +250,11 @@ export default function NewOrder({ onBack, onCancel }) {
                     </div>
 
                     <p className="mt-3 text-center text-sm font-extrabold text-gray-700">₱{item.price.toFixed(2)}</p>
-                    <p className="mt-1 text-center text-[10px] font-bold text-gray-500">
-                      Available: {cap} {cap === 1 ? 'serving' : 'servings'}
-                    </p>
-
                     <div className="mt-3 flex items-center justify-center gap-3">
                       <button
                         type="button"
                         onClick={() => inc(item)}
-                        disabled={!configured || count >= cap}
+                        disabled={!configured}
                         className="grid h-8 w-10 place-items-center rounded-lg border border-[#D98C5F]/40 bg-[#D98C5F]/10 text-[#D98C5F] font-extrabold hover:bg-[#D98C5F]/15 disabled:opacity-40 disabled:cursor-not-allowed"
                         aria-label={`Add ${item.name}`}
                       >

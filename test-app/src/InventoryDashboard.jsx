@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
 
-/** @typedef {{ ingredient_id: number, name: string, current_quantity: number, unit_of_measure: string, low_stock: number }} InventoryRow */
+/** @typedef {{ ingredient_id: number, name: string, current_quantity: number, unit_of_measure: string, low_stock: number, is_active: boolean }} InventoryRow */
 /** @typedef {{ item_id: number, name: string, description: string, price: number, category: string, availability_status: string }} MenuRow */
+/** @typedef {{ menu_ingredient_id: number, menu_item_id: number, ingredient_id: number, quantity_required: number, unit_of_measure: string }} MenuIngredientRow */
 
 /** Avoid NaN when Postgres / Realtime sends null, blanks, or non-numeric strings. */
 function safeNumeric(raw, fallback = 0) {
@@ -25,6 +26,7 @@ function normalizeInventoryRow(raw) {
     current_quantity: safeNumeric(raw.current_quantity, 0),
     unit_of_measure: normalizeUnit(raw.unit_of_measure),
     low_stock: safeNumeric(raw.low_stock, 0),
+    is_active: raw.is_active !== false,
   }
 }
 
@@ -37,6 +39,17 @@ function normalizeMenuRow(raw) {
     price: safeNumeric(raw.price, 0),
     category: String(raw.category ?? ''),
     availability_status: String(raw.availability_status ?? ''),
+  }
+}
+
+function normalizeMenuIngredientRow(raw) {
+  const id = Number(raw.menu_ingredient_id)
+  return {
+    menu_ingredient_id: Number.isFinite(id) ? id : safeNumeric(raw.menu_ingredient_id, 0),
+    menu_item_id: safeNumeric(raw.menu_item_id, 0),
+    ingredient_id: safeNumeric(raw.ingredient_id, 0),
+    quantity_required: safeNumeric(raw.quantity_required, 0),
+    unit_of_measure: normalizeUnit(raw.unit_of_measure),
   }
 }
 
@@ -53,6 +66,7 @@ function mergeUpdateIntoRow(prevRow, incoming) {
     current_quantity: incoming.current_quantity ?? base.current_quantity,
     unit_of_measure: incoming.unit_of_measure ?? base.unit_of_measure,
     low_stock: incoming.low_stock ?? base.low_stock,
+    is_active: incoming.is_active ?? base.is_active,
   })
 }
 
@@ -123,6 +137,7 @@ function mergeRealtimeRows(prev, payload) {
   const eventType = payload.eventType
   if (eventType === 'INSERT' && payload.new) {
     const row = normalizeInventoryRow(payload.new)
+    if (!row.is_active) return prev
     const without = prev.filter((r) => r.ingredient_id !== row.ingredient_id)
     return sortById([...without, row])
   }
@@ -130,6 +145,7 @@ function mergeRealtimeRows(prev, payload) {
     const id = Number(payload.new.ingredient_id)
     const prevRow = prev.find((r) => r.ingredient_id === id)
     const row = mergeUpdateIntoRow(prevRow, payload.new)
+    if (!row.is_active) return prev.filter((r) => r.ingredient_id !== row.ingredient_id)
     return sortById(prev.map((r) => (r.ingredient_id === row.ingredient_id ? row : r)))
   }
   if (eventType === 'DELETE' && payload.old) {
@@ -192,6 +208,8 @@ export default function InventoryDashboard() {
   const [rows, setRows] = useState([])
   /** @type {[MenuRow[], React.Dispatch<React.SetStateAction<MenuRow[]>>]} */
   const [menuRows, setMenuRows] = useState([])
+  /** @type {[MenuIngredientRow[], React.Dispatch<React.SetStateAction<MenuIngredientRow[]>>]} */
+  const [menuIngredientRows, setMenuIngredientRows] = useState([])
   const configured = supabaseConfigured()
   const [loading, setLoading] = useState(configured)
   const [fetchError, setFetchError] = useState(/** @type {string | null} */ (null))
@@ -203,14 +221,34 @@ export default function InventoryDashboard() {
   const [addMode, setAddMode] = useState('ingredient')
   const [newIngredient, setNewIngredient] = useState(emptyNewIngredient)
   const [newMenuItem, setNewMenuItem] = useState(emptyNewMenuItem)
+  const [recipeInputs, setRecipeInputs] = useState(/** @type {Record<number, { ingredient_id: string, quantity_required: string }>} */ ({}))
   const [busyIngredientId, setBusyIngredientId] = useState(/** @type {number | null} */ (null))
   const [addingIngredient, setAddingIngredient] = useState(false)
   const [addingMenuItem, setAddingMenuItem] = useState(false)
+  const [busyRecipeItemId, setBusyRecipeItemId] = useState(/** @type {number | null} */ (null))
+  const [deleteConfirm, setDeleteConfirm] = useState(
+    /** @type {{ type: 'ingredient' | 'menu', id: number, name: string, input: string } | null} */ (null),
+  )
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const [actionError, setActionError] = useState(/** @type {string | null} */ (null))
   const [actionMessage, setActionMessage] = useState(/** @type {string | null} */ (null))
 
   const missingEnvMessage =
     'Missing Supabase URL/key. Set SUPABASE_URL and SUPABASE_KEY (anon) or VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the repo-root .env — see test-app/.env.example.'
+
+  const ingredientById = useMemo(() => {
+    return new Map(rows.map((row) => [row.ingredient_id, row]))
+  }, [rows])
+
+  const recipeRowsByMenuId = useMemo(() => {
+    const grouped = new Map()
+    for (const row of menuIngredientRows) {
+      const existing = grouped.get(row.menu_item_id) ?? []
+      existing.push(row)
+      grouped.set(row.menu_item_id, existing)
+    }
+    return grouped
+  }, [menuIngredientRows])
 
   const refreshFromServer = useCallback(async () => {
     if (!supabase) return
@@ -221,7 +259,7 @@ export default function InventoryDashboard() {
       setRows([])
       return
     }
-    setRows(sortById((data ?? []).map(normalizeInventoryRow)))
+    setRows(sortById((data ?? []).map(normalizeInventoryRow).filter((row) => row.is_active)))
   }, [])
 
   const refreshMenuFromServer = useCallback(async () => {
@@ -233,7 +271,25 @@ export default function InventoryDashboard() {
       setMenuRows([])
       return
     }
-    setMenuRows(sortMenuById((data ?? []).map(normalizeMenuRow)))
+    setMenuRows(
+      sortMenuById(
+        (data ?? [])
+          .map(normalizeMenuRow)
+          .filter((row) => row.availability_status.toLowerCase() !== 'unavailable'),
+      ),
+    )
+  }, [])
+
+  const refreshMenuIngredientsFromServer = useCallback(async () => {
+    if (!supabase) return
+    setFetchError(null)
+    const { data, error } = await supabase.from('menu_ingredients').select('*').order('menu_ingredient_id')
+    if (error) {
+      setFetchError(error.message)
+      setMenuIngredientRows([])
+      return
+    }
+    setMenuIngredientRows((data ?? []).map(normalizeMenuIngredientRow))
   }, [])
 
   const handleNewIngredientChange = useCallback((field, value) => {
@@ -243,6 +299,116 @@ export default function InventoryDashboard() {
   const handleNewMenuItemChange = useCallback((field, value) => {
     setNewMenuItem((prev) => ({ ...prev, [field]: value }))
   }, [])
+
+  const handleRecipeInputChange = useCallback((itemId, field, value) => {
+    setRecipeInputs((prev) => ({
+      ...prev,
+      [itemId]: {
+        ingredient_id: prev[itemId]?.ingredient_id ?? '',
+        quantity_required: prev[itemId]?.quantity_required ?? '',
+        [field]: value,
+      },
+    }))
+  }, [])
+
+  const openDeleteConfirm = useCallback((type, id, name) => {
+    setActionError(null)
+    setActionMessage(null)
+    setDeleteConfirm({ type, id, name, input: '' })
+  }, [])
+
+  const handleDeleteConfirmInput = useCallback((value) => {
+    setDeleteConfirm((prev) => (prev ? { ...prev, input: value } : prev))
+  }, [])
+
+  const handleConfirmedDelete = useCallback(async () => {
+    if (!supabase || !deleteConfirm || deleteConfirm.input.trim().toLowerCase() !== 'yes') return
+
+    setDeleteBusy(true)
+    setActionError(null)
+    setActionMessage(null)
+
+    const request =
+      deleteConfirm.type === 'ingredient'
+        ? supabase.from('inventory').update({ is_active: false }).eq('ingredient_id', deleteConfirm.id)
+        : supabase.from('menu').update({ availability_status: 'unavailable' }).eq('item_id', deleteConfirm.id)
+
+    const { error } = await request
+
+    setDeleteBusy(false)
+
+    if (error) {
+      setActionError(error.message)
+      return
+    }
+
+    if (deleteConfirm.type === 'ingredient') {
+      setRows((prev) => prev.filter((row) => row.ingredient_id !== deleteConfirm.id))
+      setMenuIngredientRows((prev) => prev.filter((row) => row.ingredient_id !== deleteConfirm.id))
+    } else {
+      setMenuRows((prev) => prev.filter((row) => row.item_id !== deleteConfirm.id))
+      setMenuIngredientRows((prev) => prev.filter((row) => row.menu_item_id !== deleteConfirm.id))
+    }
+
+    setActionMessage(`${deleteConfirm.name} archived.`)
+    setDeleteConfirm(null)
+  }, [deleteConfirm])
+
+  const handleAddRecipeIngredient = useCallback(
+    async (menuItem) => {
+      if (!supabase) return
+
+      const input = recipeInputs[menuItem.item_id] ?? {}
+      const ingredientId = Number(input.ingredient_id)
+      const quantityRequired = Number(input.quantity_required)
+      const ingredient = rows.find((row) => row.ingredient_id === ingredientId)
+
+      setActionError(null)
+      setActionMessage(null)
+
+      if (!ingredient) {
+        setActionError('Choose an ingredient for this menu item.')
+        return
+      }
+
+      if (!Number.isFinite(quantityRequired) || quantityRequired <= 0) {
+        setActionError('Enter a recipe quantity greater than zero.')
+        return
+      }
+
+      setBusyRecipeItemId(menuItem.item_id)
+
+      const { data: inserted, error } = await supabase
+        .from('menu_ingredients')
+        .insert({
+          menu_item_id: menuItem.item_id,
+          ingredient_id: ingredient.ingredient_id,
+          quantity_required: quantityRequired,
+          unit_of_measure: ingredient.unit_of_measure,
+        })
+        .select('*')
+        .single()
+
+      setBusyRecipeItemId(null)
+
+      if (error || !inserted) {
+        setActionError(error?.message ?? 'Could not add recipe ingredient.')
+        return
+      }
+
+      const row = normalizeMenuIngredientRow(inserted)
+      setMenuIngredientRows((prev) => [
+        ...prev.filter((item) => item.menu_ingredient_id !== row.menu_ingredient_id),
+        row,
+      ])
+      setRecipeInputs((prev) => ({
+        ...prev,
+        [menuItem.item_id]: { ingredient_id: '', quantity_required: '' },
+      }))
+      setActionMessage(`${ingredient.name} linked to ${menuItem.name}.`)
+    },
+    [recipeInputs, rows],
+  )
 
   const handleAddIngredient = useCallback(async () => {
     if (!supabase) return
@@ -504,19 +670,33 @@ export default function InventoryDashboard() {
       setLoading(true)
       setFetchError(null)
       try {
-        const [inventoryResult, menuResult] = await Promise.all([
+        const [inventoryResult, menuResult, menuIngredientsResult] = await Promise.all([
           supabase.from('inventory').select('*').order('ingredient_id'),
           supabase.from('menu').select('*').order('item_id'),
+          supabase.from('menu_ingredients').select('*').order('menu_ingredient_id'),
         ])
         if (cancelled) return
 
-        if (inventoryResult.error || menuResult.error) {
-          setFetchError(inventoryResult.error?.message ?? menuResult.error?.message ?? 'Could not load dashboard data.')
+        if (inventoryResult.error || menuResult.error || menuIngredientsResult.error) {
+          setFetchError(
+            inventoryResult.error?.message ??
+              menuResult.error?.message ??
+              menuIngredientsResult.error?.message ??
+              'Could not load dashboard data.',
+          )
           setRows([])
           setMenuRows([])
+          setMenuIngredientRows([])
         } else {
-          setRows(sortById((inventoryResult.data ?? []).map(normalizeInventoryRow)))
-          setMenuRows(sortMenuById((menuResult.data ?? []).map(normalizeMenuRow)))
+          setRows(sortById((inventoryResult.data ?? []).map(normalizeInventoryRow).filter((row) => row.is_active)))
+          setMenuRows(
+            sortMenuById(
+              (menuResult.data ?? [])
+                .map(normalizeMenuRow)
+                .filter((row) => row.availability_status.toLowerCase() !== 'unavailable'),
+            ),
+          )
+          setMenuIngredientRows((menuIngredientsResult.data ?? []).map(normalizeMenuIngredientRow))
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -603,6 +783,47 @@ export default function InventoryDashboard() {
         </div>
       )}
 
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">Are you sure?</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              This will archive <span className="font-bold text-gray-900">{deleteConfirm.name}</span> from{' '}
+              <span className="font-bold">{deleteConfirm.type === 'ingredient' ? 'inventory' : 'menu'}</span>.
+              Type <span className="font-bold">yes</span> to continue.
+            </p>
+
+            <input
+              type="text"
+              value={deleteConfirm.input}
+              onChange={(e) => handleDeleteConfirmInput(e.target.value)}
+              placeholder="yes"
+              className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              disabled={deleteBusy}
+            />
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleteBusy}
+                className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmedDelete}
+                disabled={deleteBusy || deleteConfirm.input.trim().toLowerCase() !== 'yes'}
+                className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteBusy ? 'Archiving...' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {fetchError && configured && (
         <div className="text-center text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-6 space-y-2">
           <p>{fetchError}</p>
@@ -615,7 +836,11 @@ export default function InventoryDashboard() {
             type="button"
             onClick={() => {
               setLoading(true)
-              Promise.all([refreshFromServer(), refreshMenuFromServer()]).finally(() => setLoading(false))
+              Promise.all([
+                refreshFromServer(),
+                refreshMenuFromServer(),
+                refreshMenuIngredientsFromServer(),
+              ]).finally(() => setLoading(false))
             }}
             className="text-xs font-bold underline text-[#D98C5F]"
           >
@@ -930,6 +1155,13 @@ export default function InventoryDashboard() {
 
                   <div>
                     <p className="font-bold text-gray-900 leading-tight text-base">{row.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => openDeleteConfirm('ingredient', row.ingredient_id, row.name)}
+                      className="mt-2 text-xs font-bold text-red-600 underline hover:text-red-700"
+                    >
+                      Archive ingredient
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2">
@@ -1067,6 +1299,13 @@ export default function InventoryDashboard() {
                     <div className="min-w-0">
                       <p className="font-bold text-gray-900 leading-tight">{item.name}</p>
                       <p className="mt-1 text-xs text-gray-500">{item.category}</p>
+                      <button
+                        type="button"
+                        onClick={() => openDeleteConfirm('menu', item.item_id, item.name)}
+                        className="mt-2 text-xs font-bold text-red-600 underline hover:text-red-700"
+                      >
+                        Archive menu item
+                      </button>
                     </div>
 
                     <span
@@ -1100,6 +1339,74 @@ export default function InventoryDashboard() {
                           maximumFractionDigits: 2,
                         })}
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-4 space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                      Recipe Ingredients
+                    </p>
+
+                    {(recipeRowsByMenuId.get(item.item_id) ?? []).length === 0 ? (
+                      <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                        No ingredients linked yet. Orders need at least one recipe ingredient to deduct stock.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {(recipeRowsByMenuId.get(item.item_id) ?? []).map((recipeRow) => {
+                          const ingredient = ingredientById.get(recipeRow.ingredient_id)
+
+                          return (
+                            <li
+                              key={recipeRow.menu_ingredient_id}
+                              className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-[#FAF8F5] px-3 py-2 text-xs"
+                            >
+                              <span className="font-semibold text-gray-700">
+                                {ingredient?.name ?? `Ingredient #${recipeRow.ingredient_id}`}
+                              </span>
+                              <span className="text-gray-500">
+                                {recipeRow.quantity_required} {recipeRow.unit_of_measure}
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+
+                    <div className="grid gap-2 sm:grid-cols-[1fr_0.7fr_auto]">
+                      <select
+                        value={recipeInputs[item.item_id]?.ingredient_id ?? ''}
+                        onChange={(e) => handleRecipeInputChange(item.item_id, 'ingredient_id', e.target.value)}
+                        className="rounded-lg border border-gray-300 px-2 py-2 text-xs"
+                        disabled={busyRecipeItemId === item.item_id || !configured || rows.length === 0}
+                      >
+                        <option value="">Choose ingredient</option>
+                        {rows.map((ingredient) => (
+                          <option key={ingredient.ingredient_id} value={ingredient.ingredient_id}>
+                            {ingredient.name} ({ingredient.unit_of_measure})
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="Qty"
+                        value={recipeInputs[item.item_id]?.quantity_required ?? ''}
+                        onChange={(e) => handleRecipeInputChange(item.item_id, 'quantity_required', e.target.value)}
+                        className="rounded-lg border border-gray-300 px-2 py-2 text-xs"
+                        disabled={busyRecipeItemId === item.item_id || !configured}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => handleAddRecipeIngredient(item)}
+                        disabled={busyRecipeItemId === item.item_id || !configured || rows.length === 0}
+                        className="rounded-full bg-[#3B2F2A] px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                      >
+                        {busyRecipeItemId === item.item_id ? 'Adding...' : 'Link'}
+                      </button>
                     </div>
                   </div>
                 </article>

@@ -28,6 +28,11 @@ function formatCurrency(value) {
   })}`
 }
 
+function getYear(dateValue) {
+  const date = new Date(dateValue)
+  return Number.isNaN(date.getTime()) ? null : date.getFullYear()
+}
+
 function getMonthIndex(dateValue) {
   const date = new Date(dateValue)
   return Number.isNaN(date.getTime()) ? -1 : date.getMonth()
@@ -37,13 +42,6 @@ function getWeekIndex(dateValue) {
   const date = new Date(dateValue)
   if (Number.isNaN(date.getTime())) return 0
   return Math.min(4, Math.floor((date.getDate() - 1) / 7))
-}
-
-function currentYearRange(year) {
-  return {
-    start: `${year}-01-01T00:00:00.000Z`,
-    end: `${year + 1}-01-01T00:00:00.000Z`,
-  }
 }
 
 function emptyMonthRows() {
@@ -59,6 +57,75 @@ function emptyMonthRows() {
   }))
 }
 
+function normalizeRpcArray(value) {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function getAvailableYears(orders, expenses, fallbackYear) {
+  const years = new Set()
+
+  for (const order of orders) {
+    const orderYear = getYear(order.created_at)
+    if (orderYear) years.add(orderYear)
+  }
+
+  for (const expense of expenses) {
+    const expenseYear = getYear(expense.expense_date)
+    if (expenseYear) years.add(expenseYear)
+  }
+
+  if (years.size === 0) return [fallbackYear]
+  return [...years].sort((a, b) => b - a)
+}
+
+function buildMonthlyRows(orders, expenses, year) {
+  const nextRows = emptyMonthRows()
+
+  for (const order of orders) {
+    if (getYear(order.created_at) !== year) continue
+
+    const monthIndex = getMonthIndex(order.created_at)
+    if (monthIndex < 0) continue
+
+    const amount = safeNumber(order.total_amount)
+    const weekIndex = getWeekIndex(order.created_at)
+
+    nextRows[monthIndex].totalRevenue += amount
+    nextRows[monthIndex].weeklyRevenue[weekIndex] += amount
+    nextRows[monthIndex].orderCount += 1
+  }
+
+  for (const expense of expenses) {
+    if (getYear(expense.expense_date) !== year) continue
+
+    const monthIndex = getMonthIndex(expense.expense_date)
+    if (monthIndex < 0) continue
+
+    const expenseAmount = safeNumber(expense.amount)
+    if (expenseAmount <= 0) continue
+
+    const weekIndex = getWeekIndex(expense.expense_date)
+
+    nextRows[monthIndex].totalExpenses += expenseAmount
+    nextRows[monthIndex].weeklyExpenses[weekIndex] += expenseAmount
+    nextRows[monthIndex].expenseCount += 1
+  }
+
+  return nextRows.map((row) => ({
+    ...row,
+    netIncome: row.totalRevenue - row.totalExpenses,
+  }))
+}
+
 export default function AdminDashboardCosts() {
   const configured = supabaseConfigured()
   const currentDate = new Date()
@@ -67,7 +134,8 @@ export default function AdminDashboardCosts() {
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonth)
   const [year, setYear] = useState(currentYear)
-  const [monthlyData, setMonthlyData] = useState(emptyMonthRows)
+  const [orders, setOrders] = useState([])
+  const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(configured)
   const [fetchError, setFetchError] = useState(null)
 
@@ -77,68 +145,41 @@ export default function AdminDashboardCosts() {
     setLoading(true)
     setFetchError(null)
 
-    const { start, end } = currentYearRange(year)
-
-    const [ordersResult, expensesResult] = await Promise.all([
-      supabase
-        .from('orders')
-        .select('created_at,total_amount')
-        .gte('created_at', start)
-        .lt('created_at', end),
-      supabase
-        .from('expenses')
-        .select('expense_date,amount')
-        .gte('expense_date', start)
-        .lt('expense_date', end),
+    const [pendingOrdersResult, receivedOrdersResult, expensesResult] = await Promise.all([
+      supabase.rpc('list_pending_orders_with_items'),
+      supabase.rpc('list_received_orders_with_items'),
+      supabase.from('expenses').select('expense_date,amount'),
     ])
 
-    if (ordersResult.error || expensesResult.error) {
+    if (pendingOrdersResult.error || receivedOrdersResult.error) {
       setFetchError(
-        ordersResult.error?.message ||
-          expensesResult.error?.message ||
+        pendingOrdersResult.error?.message ||
+          receivedOrdersResult.error?.message ||
           'Could not load revenue data.',
       )
-      setMonthlyData(emptyMonthRows())
+      setOrders([])
+      setExpenses([])
       setLoading(false)
       return
     }
 
-    const nextRows = emptyMonthRows()
+    const nextOrders = [
+      ...normalizeRpcArray(pendingOrdersResult.data),
+      ...normalizeRpcArray(receivedOrdersResult.data),
+    ]
+    const nextExpenses = expensesResult.error ? [] : expensesResult.data ?? []
+    const nextYears = getAvailableYears(nextOrders, nextExpenses, currentYear)
 
-    for (const order of ordersResult.data ?? []) {
-      const monthIndex = getMonthIndex(order.created_at)
-      if (monthIndex < 0) continue
+    setOrders(nextOrders)
+    setExpenses(nextExpenses)
+    setYear((previousYear) => (nextYears.includes(previousYear) ? previousYear : nextYears[0]))
 
-      const amount = safeNumber(order.total_amount)
-      const weekIndex = getWeekIndex(order.created_at)
-
-      nextRows[monthIndex].totalRevenue += amount
-      nextRows[monthIndex].weeklyRevenue[weekIndex] += amount
-      nextRows[monthIndex].orderCount += 1
+    if (expensesResult.error) {
+      setFetchError(`Revenue loaded, but costs could not load: ${expensesResult.error.message}`)
     }
 
-    for (const expense of expensesResult.data ?? []) {
-      const monthIndex = getMonthIndex(expense.expense_date)
-      if (monthIndex < 0) continue
-
-      const expenseAmount = safeNumber(expense.amount)
-      if (expenseAmount <= 0) continue
-
-      const weekIndex = getWeekIndex(expense.expense_date)
-
-      nextRows[monthIndex].totalExpenses += expenseAmount
-      nextRows[monthIndex].weeklyExpenses[weekIndex] += expenseAmount
-      nextRows[monthIndex].expenseCount += 1
-    }
-
-    setMonthlyData(
-      nextRows.map((row) => ({
-        ...row,
-        netIncome: row.totalRevenue - row.totalExpenses,
-      })),
-    )
     setLoading(false)
-  }, [year])
+  }, [currentYear])
 
   useEffect(() => {
     if (!configured || !supabase) return
@@ -149,7 +190,27 @@ export default function AdminDashboardCosts() {
     return () => window.clearTimeout(timeoutId)
   }, [configured, fetchFinancialData])
 
-  const computedData = useMemo(() => monthlyData, [monthlyData])
+  const availableYears = useMemo(
+    () => getAvailableYears(orders, expenses, currentYear),
+    [orders, expenses, currentYear],
+  )
+
+  const computedData = useMemo(
+    () => buildMonthlyRows(orders, expenses, year),
+    [orders, expenses, year],
+  )
+
+  const yearRevenue = useMemo(
+    () => computedData.reduce((sum, item) => sum + item.totalRevenue, 0),
+    [computedData],
+  )
+
+  const yearExpenses = useMemo(
+    () => computedData.reduce((sum, item) => sum + item.totalExpenses, 0),
+    [computedData],
+  )
+
+  const yearNetIncome = yearRevenue - yearExpenses
 
   const currentMonthData =
     computedData.find((item) => item.month === selectedMonth) || computedData[0]
@@ -197,13 +258,18 @@ export default function AdminDashboardCosts() {
             </div>
 
             <div className="flex items-center gap-3">
-              <input
-                type="number"
+              <select
                 value={year}
                 onChange={(e) => setYear(safeNumber(e.target.value, currentYear))}
                 className="w-28 rounded-xl border border-[#D98C5F]/30 px-3 py-2 text-sm font-semibold outline-none"
                 aria-label="Revenue year"
-              />
+              >
+                {availableYears.map((availableYear) => (
+                  <option key={availableYear} value={availableYear}>
+                    {availableYear}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={fetchFinancialData}
@@ -212,6 +278,35 @@ export default function AdminDashboardCosts() {
               >
                 {loading ? 'Loading...' : 'Refresh'}
               </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3 mb-6">
+            <div className="rounded-2xl border border-[#D98C5F]/30 p-5">
+              <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
+                Year Revenue
+              </p>
+              <p className="mt-2 text-2xl font-bold text-green-700">{formatCurrency(yearRevenue)}</p>
+            </div>
+
+            <div className="rounded-2xl border border-[#D98C5F]/30 p-5">
+              <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
+                Year Cost
+              </p>
+              <p className="mt-2 text-2xl font-bold text-red-500">{formatCurrency(yearExpenses)}</p>
+            </div>
+
+            <div className="rounded-2xl border border-[#D98C5F]/30 p-5">
+              <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
+                Year Net Income
+              </p>
+              <p
+                className={`mt-2 text-2xl font-bold ${
+                  yearNetIncome >= 0 ? 'text-orange-500' : 'text-red-700'
+                }`}
+              >
+                {formatCurrency(yearNetIncome)}
+              </p>
             </div>
           </div>
 

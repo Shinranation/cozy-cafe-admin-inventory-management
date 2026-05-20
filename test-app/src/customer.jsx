@@ -6,13 +6,35 @@ function parseRpcJsonArray(data) {
   if (Array.isArray(data)) return data
   if (typeof data === 'string') {
     try {
-      const p = JSON.parse(data)
-      return Array.isArray(p) ? p : []
+      const parsed = JSON.parse(data)
+      return Array.isArray(parsed) ? parsed : []
     } catch {
       return []
     }
   }
   return []
+}
+
+function normalizeMenuRows(rows) {
+  return rows
+    .map((r) => {
+      const availabilityStatus = String(r.availability_status ?? 'available')
+
+      return {
+        id: Number(r.item_id),
+        name: String(r.name ?? ''),
+        description: String(r.description ?? ''),
+        category: String(r.category ?? ''),
+        price: Number(r.price),
+        availabilityStatus,
+      }
+    })
+    .filter(
+      (r) =>
+        Number.isFinite(r.id) &&
+        r.id > 0 &&
+        r.availabilityStatus.toLowerCase() === 'available',
+    )
 }
 
 export default function Customer() {
@@ -24,24 +46,46 @@ export default function Customer() {
   const loadMenu = useCallback(async () => {
     if (!supabase) return
     setFetchError(null)
+
     const { data, error } = await supabase.rpc('get_menu_public')
+
     if (error) {
-      setFetchError(error.message)
+      const { data: directData, error: directError } = await supabase
+        .from('menu')
+        .select('item_id,name,description,price,category,availability_status')
+        .order('category')
+        .order('name')
+
+      if (directError) {
+        setFetchError(`${error.message}; fallback failed: ${directError.message}`)
+        setItems([])
+        return
+      }
+
+      setItems(normalizeMenuRows(directData ?? []))
+      return
+    }
+
+    const rpcItems = normalizeMenuRows(parseRpcJsonArray(data))
+
+    if (rpcItems.length > 0) {
+      setItems(rpcItems)
+      return
+    }
+
+    const { data: directData, error: directError } = await supabase
+      .from('menu')
+      .select('item_id,name,description,price,category,availability_status')
+      .order('category')
+      .order('name')
+
+    if (directError) {
+      setFetchError(directError.message)
       setItems([])
       return
     }
-    const raw = parseRpcJsonArray(data)
-    setItems(
-      raw
-        .map((r) => ({
-          id: Number(r.item_id),
-          name: String(r.name ?? ''),
-          description: String(r.description ?? ''),
-          category: String(r.category ?? ''),
-          price: Number(r.price),
-        }))
-        .filter((r) => Number.isFinite(r.id) && r.id > 0),
-    )
+
+    setItems(normalizeMenuRows(directData ?? []))
   }, [])
 
   useEffect(() => {
