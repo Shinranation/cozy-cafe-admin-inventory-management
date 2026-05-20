@@ -37,55 +37,64 @@ function normalizeMenuRows(rows) {
     )
 }
 
+function mergeMenuRows(primaryRows, fallbackRows) {
+  const rowsById = new Map()
+
+  for (const row of fallbackRows) {
+    rowsById.set(row.id, row)
+  }
+
+  for (const row of primaryRows) {
+    rowsById.set(row.id, row)
+  }
+
+  return [...rowsById.values()].sort((a, b) => {
+    const categoryOrder = a.category.localeCompare(b.category)
+    if (categoryOrder !== 0) return categoryOrder
+    return a.name.localeCompare(b.name)
+  })
+}
+
 export default function Customer() {
   const configured = supabaseConfigured()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(configured)
   const [fetchError, setFetchError] = useState(null)
+  const [expandedItemId, setExpandedItemId] = useState(null)
 
   const loadMenu = useCallback(async () => {
     if (!supabase) return
     setFetchError(null)
 
-    const { data, error } = await supabase.rpc('get_menu_public')
-
-    if (error) {
-      const { data: directData, error: directError } = await supabase
+    const [directResult, rpcResult] = await Promise.all([
+      supabase
         .from('menu')
         .select('item_id,name,description,price,category,availability_status')
         .order('category')
-        .order('name')
+        .order('name'),
+      supabase.rpc('get_menu_public'),
+    ])
 
-      if (directError) {
-        setFetchError(`${error.message}; fallback failed: ${directError.message}`)
-        setItems([])
-        return
-      }
+    const directItems = directResult.error ? [] : normalizeMenuRows(directResult.data ?? [])
+    const rpcItems = rpcResult.error ? [] : normalizeMenuRows(parseRpcJsonArray(rpcResult.data))
+    const nextItems = mergeMenuRows(directItems, rpcItems)
 
-      setItems(normalizeMenuRows(directData ?? []))
+    if (nextItems.length > 0) {
+      setItems(nextItems)
       return
     }
 
-    const rpcItems = normalizeMenuRows(parseRpcJsonArray(data))
-
-    if (rpcItems.length > 0) {
-      setItems(rpcItems)
-      return
-    }
-
-    const { data: directData, error: directError } = await supabase
-      .from('menu')
-      .select('item_id,name,description,price,category,availability_status')
-      .order('category')
-      .order('name')
-
-    if (directError) {
-      setFetchError(directError.message)
+    if (directResult.error || rpcResult.error) {
+      setFetchError(
+        directResult.error?.message ||
+          rpcResult.error?.message ||
+          'Could not load menu items.',
+      )
       setItems([])
       return
     }
 
-    setItems(normalizeMenuRows(directData ?? []))
+    setItems([])
   }, [])
 
   useEffect(() => {
@@ -101,6 +110,32 @@ export default function Customer() {
     }
   }, [configured, loadMenu])
 
+  useEffect(() => {
+    if (!configured || !supabase) return
+
+    const refreshVisibleMenu = () => {
+      if (document.visibilityState === 'visible') {
+        void loadMenu()
+      }
+    }
+
+    window.addEventListener('focus', refreshVisibleMenu)
+    document.addEventListener('visibilitychange', refreshVisibleMenu)
+
+    const channel = supabase
+      .channel('customer-menu-refresh')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu' }, () => {
+        void loadMenu()
+      })
+      .subscribe()
+
+    return () => {
+      window.removeEventListener('focus', refreshVisibleMenu)
+      document.removeEventListener('visibilitychange', refreshVisibleMenu)
+      supabase.removeChannel(channel)
+    }
+  }, [configured, loadMenu])
+
   const categories = useMemo(() => {
     const fromDb = [...new Set(items.map((i) => i.category).filter(Boolean))].sort()
     return ['All', ...fromDb]
@@ -112,6 +147,10 @@ export default function Customer() {
     if (activeCategory === 'All') return items
     return items.filter((item) => item.category === activeCategory)
   }, [activeCategory, items])
+
+  function toggleDetails(itemId) {
+    setExpandedItemId((currentId) => (currentId === itemId ? null : itemId))
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F0E6] text-[#3B2F2A]">
@@ -144,7 +183,7 @@ export default function Customer() {
 
           {loading && configured && (
             <p className="mb-8 text-center text-sm text-black/50" aria-live="polite">
-              Loading menu…
+              Loading menu...
             </p>
           )}
 
@@ -171,29 +210,79 @@ export default function Customer() {
           </div>
 
           <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleItems.map((item) => (
-              <article
-                key={item.id}
-                className="rounded-[28px] border-2 border-[#D98C5F] bg-white p-5"
-              >
-                <div className="aspect-[4/3] w-full overflow-hidden rounded-xl border-2 border-black/40 bg-white relative">
-                  <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
-                    <div className="absolute w-full h-[1px] bg-black rotate-45" />
-                    <div className="absolute w-full h-[1px] bg-black -rotate-45" />
-                  </div>
-                </div>
+            {visibleItems.map((item) => {
+              const isExpanded = expandedItemId === item.id
 
-                <div className="mt-4">
-                  <p className="text-xl font-extrabold leading-tight text-[#3B2F2A]">{item.name}</p>
-                  {item.description ? (
-                    <p className="mt-1 text-xs text-black/55 line-clamp-3">{item.description}</p>
-                  ) : null}
-                  <p className="mt-2 text-lg font-extrabold text-[#D98C5F]">
-                    {Number.isFinite(item.price) ? `₱${item.price.toFixed(2)}` : '₱—'}
-                  </p>
-                </div>
-              </article>
-            ))}
+              return (
+                <article
+                  key={item.id}
+                  className="rounded-[28px] border-2 border-[#D98C5F] bg-white p-5"
+                >
+                  <div className="aspect-[4/3] w-full overflow-hidden rounded-xl border-2 border-black/40 bg-white relative">
+                    <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
+                      <div className="absolute w-full h-[1px] bg-black rotate-45" />
+                      <div className="absolute w-full h-[1px] bg-black -rotate-45" />
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-xl font-extrabold leading-tight text-[#3B2F2A]">
+                        {item.name}
+                      </p>
+
+                      {item.category ? (
+                        <span className="shrink-0 rounded-full bg-[#F7F0E6] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#3B2F2A]/70">
+                          {item.category}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <p className="mt-2 text-lg font-extrabold text-[#D98C5F]">
+                      {Number.isFinite(item.price) ? `₱${item.price.toFixed(2)}` : '₱—'}
+                    </p>
+
+                    {item.description ? (
+                      <p
+                        className={[
+                          'mt-3 text-sm leading-relaxed text-black/65',
+                          isExpanded ? '' : 'line-clamp-3',
+                        ].join(' ')}
+                      >
+                        {item.description}
+                      </p>
+                    ) : (
+                      <p className="mt-3 text-sm leading-relaxed text-black/45">
+                        No description added yet.
+                      </p>
+                    )}
+
+                    <div className="mt-4 border-t border-[#D98C5F]/20 pt-4 text-xs text-black/55">
+                      <div className="flex justify-between gap-4">
+                        <span>Menu ID</span>
+                        <span className="font-bold text-[#3B2F2A]">{item.id}</span>
+                      </div>
+                      <div className="mt-2 flex justify-between gap-4">
+                        <span>Status</span>
+                        <span className="font-bold text-[#3B2F2A]">
+                          {item.availabilityStatus}
+                        </span>
+                      </div>
+                    </div>
+
+                    {item.description.length > 120 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleDetails(item.id)}
+                        className="mt-4 w-full rounded-full border border-[#D98C5F]/40 px-4 py-2 text-sm font-bold text-[#D98C5F] transition hover:bg-[#D98C5F]/10"
+                      >
+                        {isExpanded ? 'Show less' : 'More details'}
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              )
+            })}
           </div>
 
           {!loading && !fetchError && configured && visibleItems.length === 0 && (
