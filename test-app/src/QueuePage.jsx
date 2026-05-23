@@ -1,6 +1,30 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
 
+function getWaitMs(createdAt, nowMs) {
+  const createdMs = new Date(createdAt).getTime()
+  if (!Number.isFinite(createdMs)) return 0
+  return Math.max(0, nowMs - createdMs)
+}
+
+function getWaitMinutes(waitMs) {
+  return Math.floor(waitMs / 60000)
+}
+
+function formatWaitTime(minutes) {
+  if (minutes < 1) return 'Waiting <1 min'
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  if (hours === 0) return `Waiting ${minutes} min`
+  return `Waiting ${hours}h ${mins}m`
+}
+
+function waitBadgeClass(waitMs) {
+  if (waitMs >= 30 * 60000) return 'bg-red-100 text-red-900 border-red-300/70'
+  if (waitMs > 15 * 60000) return 'bg-yellow-100 text-yellow-950 border-yellow-300/80'
+  return 'bg-emerald-100 text-emerald-900 border-emerald-300/70'
+}
+
 function parseRpcJsonArray(data) {
   if (data == null) return []
   if (Array.isArray(data)) return data
@@ -21,6 +45,7 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
   const [loading, setLoading] = useState(configured)
   const [error, setError] = useState(/** @type {string | null} */ (null))
   const [busyOrderId, setBusyOrderId] = useState(/** @type {number | null} */ (null))
+  const [nowMs, setNowMs] = useState(() => Date.now())
 
   const load = useCallback(async () => {
     if (!supabase) return
@@ -46,6 +71,11 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
       cancelled = true
     }
   }, [configured, load, refreshKey])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 30000)
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   async function handleReceived(orderId) {
     if (!supabase) return
@@ -120,7 +150,11 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
         )}
 
         <div className="space-y-12">
-          {orders.map((order) => (
+          {orders.map((order) => {
+            const waitMs = getWaitMs(order.created_at, nowMs)
+            const waitMinutes = getWaitMinutes(waitMs)
+
+            return (
             <section key={order.order_id} className="relative">
               <div className="flex flex-wrap items-center gap-4 mb-4 px-2">
                 <div className="bg-[#D9C5B2] px-6 py-2 rounded-full border border-gray-400/30 shadow-sm">
@@ -133,6 +167,12 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
                   title="New orders are pending until marked received"
                 >
                   Pending
+                </span>
+                <span
+                  className={`rounded-full border px-4 py-1 text-xs font-extrabold uppercase tracking-wide ${waitBadgeClass(waitMs)}`}
+                  title="0-15 min: green, over 15-29 min: yellow, 30+ min: red"
+                >
+                  {formatWaitTime(waitMinutes)}
                 </span>
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-700 flex-1 min-w-[12rem]">
                   {order.customer_display}
@@ -173,7 +213,8 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
                 </div>
               </div>
             </section>
-          ))}
+            )
+          })}
         </div>
       </div>
     </main>

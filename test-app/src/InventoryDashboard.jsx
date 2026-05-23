@@ -515,6 +515,13 @@ export default function InventoryDashboard() {
   const handleRemoveRecipeIngredient = useCallback(async (recipeRow, menuItem) => {
     if (!supabase) return
 
+    const recipeCount = menuIngredientRows.filter((row) => row.menu_item_id === recipeRow.menu_item_id).length
+    if (recipeCount <= 1) {
+      setActionMessage(null)
+      setActionError('A menu item needs at least one recipe ingredient before it can be ordered.')
+      return
+    }
+
     setActionError(null)
     setActionMessage(null)
     setBusyRecipeRowId(recipeRow.menu_ingredient_id)
@@ -541,7 +548,7 @@ export default function InventoryDashboard() {
     })
     setRecipeEditDialog(null)
     setActionMessage(`Ingredient removed from ${menuItem.name}.`)
-  }, [])
+  }, [menuIngredientRows])
 
   const handleAddIngredient = useCallback(async () => {
     if (!supabase) return
@@ -1018,7 +1025,16 @@ export default function InventoryDashboard() {
               <button
                 type="button"
                 onClick={() => handleRemoveRecipeIngredient(activeRecipeEditRow, activeRecipeEditMenuItem)}
-                disabled={busyRecipeRowId === activeRecipeEditRow.menu_ingredient_id || !configured}
+                disabled={
+                  busyRecipeRowId === activeRecipeEditRow.menu_ingredient_id ||
+                  !configured ||
+                  (recipeRowsByMenuId.get(activeRecipeEditMenuItem.item_id) ?? []).length <= 1
+                }
+                title={
+                  (recipeRowsByMenuId.get(activeRecipeEditMenuItem.item_id) ?? []).length <= 1
+                    ? 'A menu item needs at least one recipe ingredient.'
+                    : 'Remove this recipe ingredient'
+                }
                 className="rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
               >
                 Remove

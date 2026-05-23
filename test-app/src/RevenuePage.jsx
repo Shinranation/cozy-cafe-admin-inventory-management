@@ -70,6 +70,9 @@ function normalizeRpcArray(value) {
   return []
 }
 
+const RESET_ACTION_PHRASE = 'RESET REVENUE'
+const RESET_SCOPE_PHRASE = 'DELETE ORDERS AND EXPENSES'
+
 function getAvailableYears(orders, expenses, fallbackYear) {
   const years = new Set()
 
@@ -138,6 +141,16 @@ export default function AdminDashboardCosts() {
   const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(configured)
   const [fetchError, setFetchError] = useState(null)
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [resetInputs, setResetInputs] = useState({ email: '', action: '', scope: '' })
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetBusy, setResetBusy] = useState(false)
+  const [resetMessage, setResetMessage] = useState(null)
+
+  const resetReady =
+    resetInputs.email.trim().toLowerCase() === resetEmail.trim().toLowerCase() &&
+    resetInputs.action.trim() === RESET_ACTION_PHRASE &&
+    resetInputs.scope.trim() === RESET_SCOPE_PHRASE
 
   const fetchFinancialData = useCallback(async () => {
     if (!supabase) return
@@ -145,16 +158,14 @@ export default function AdminDashboardCosts() {
     setLoading(true)
     setFetchError(null)
 
-    const [pendingOrdersResult, receivedOrdersResult, expensesResult] = await Promise.all([
-      supabase.rpc('list_pending_orders_with_items'),
+    const [receivedOrdersResult, expensesResult] = await Promise.all([
       supabase.rpc('list_received_orders_with_items'),
       supabase.from('expenses').select('expense_date,amount'),
     ])
 
-    if (pendingOrdersResult.error || receivedOrdersResult.error) {
+    if (receivedOrdersResult.error) {
       setFetchError(
-        pendingOrdersResult.error?.message ||
-          receivedOrdersResult.error?.message ||
+        receivedOrdersResult.error?.message ||
           'Could not load revenue data.',
       )
       setOrders([])
@@ -163,10 +174,7 @@ export default function AdminDashboardCosts() {
       return
     }
 
-    const nextOrders = [
-      ...normalizeRpcArray(pendingOrdersResult.data),
-      ...normalizeRpcArray(receivedOrdersResult.data),
-    ]
+    const nextOrders = normalizeRpcArray(receivedOrdersResult.data)
     const nextExpenses = expensesResult.error ? [] : expensesResult.data ?? []
     const nextYears = getAvailableYears(nextOrders, nextExpenses, currentYear)
 
@@ -189,6 +197,54 @@ export default function AdminDashboardCosts() {
 
     return () => window.clearTimeout(timeoutId)
   }, [configured, fetchFinancialData])
+
+  const openResetDialog = useCallback(async () => {
+    if (!supabase) return
+    setResetMessage(null)
+    setFetchError(null)
+    setResetInputs({ email: '', action: '', scope: '' })
+
+    const { data, error } = await supabase.auth.getUser()
+    if (error || !data.user?.email) {
+      setFetchError(error?.message ?? 'Could not confirm the signed-in account email.')
+      return
+    }
+
+    setResetEmail(data.user.email)
+    setResetDialogOpen(true)
+  }, [])
+
+  const handleResetInputChange = useCallback((field, value) => {
+    setResetInputs((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const handleResetRevenueData = useCallback(async () => {
+    if (!supabase || !resetReady) return
+
+    setResetBusy(true)
+    setFetchError(null)
+    setResetMessage(null)
+
+    const { data, error } = await supabase.rpc('reset_revenue_data', {
+      p_confirm_email: resetInputs.email.trim(),
+      p_confirm_action: resetInputs.action.trim(),
+      p_confirm_scope: resetInputs.scope.trim(),
+    })
+
+    setResetBusy(false)
+
+    if (error) {
+      setFetchError(error.message)
+      return
+    }
+
+    const deletedOrders = Number(data?.deleted_orders) || 0
+    const deletedExpenses = Number(data?.deleted_expenses) || 0
+    setResetMessage(`Revenue reset complete. Deleted ${deletedOrders} orders and ${deletedExpenses} expenses.`)
+    setResetDialogOpen(false)
+    setResetInputs({ email: '', action: '', scope: '' })
+    await fetchFinancialData()
+  }, [fetchFinancialData, resetInputs, resetReady])
 
   const availableYears = useMemo(
     () => getAvailableYears(orders, expenses, currentYear),
@@ -248,6 +304,80 @@ export default function AdminDashboardCosts() {
           </div>
         )}
 
+        {resetMessage && configured && (
+          <div className="text-center text-sm text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-6">
+            {resetMessage}
+          </div>
+        )}
+
+        {resetDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-bold text-gray-900">Reset Revenue Data</h3>
+              <p className="mt-2 text-sm text-gray-600">
+                This clears orders, order items, payments, and expenses. Inventory quantities and menu recipes stay unchanged.
+              </p>
+
+              <div className="mt-5 space-y-4">
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Account Email
+                  <input
+                    type="text"
+                    value={resetInputs.email}
+                    onChange={(e) => handleResetInputChange('email', e.target.value)}
+                    placeholder={resetEmail}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={resetBusy}
+                  />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Type RESET REVENUE
+                  <input
+                    type="text"
+                    value={resetInputs.action}
+                    onChange={(e) => handleResetInputChange('action', e.target.value)}
+                    placeholder={RESET_ACTION_PHRASE}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={resetBusy}
+                  />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Type DELETE ORDERS AND EXPENSES
+                  <input
+                    type="text"
+                    value={resetInputs.scope}
+                    onChange={(e) => handleResetInputChange('scope', e.target.value)}
+                    placeholder={RESET_SCOPE_PHRASE}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={resetBusy}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setResetDialogOpen(false)}
+                  disabled={resetBusy}
+                  className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleResetRevenueData()}
+                  disabled={resetBusy || !resetReady}
+                  className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {resetBusy ? 'Resetting...' : 'Reset Revenue'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <section className="bg-white border-2 border-[#D98C5F]/40 rounded-[2.5rem] p-8 mb-8 shadow-sm">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -277,6 +407,14 @@ export default function AdminDashboardCosts() {
                 className="rounded-xl bg-[#D98C5F] px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? 'Loading...' : 'Refresh'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void openResetDialog()}
+                disabled={!configured || loading}
+                className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reset Data
               </button>
             </div>
           </div>
