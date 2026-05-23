@@ -222,10 +222,15 @@ export default function InventoryDashboard() {
   const [newIngredient, setNewIngredient] = useState(emptyNewIngredient)
   const [newMenuItem, setNewMenuItem] = useState(emptyNewMenuItem)
   const [recipeInputs, setRecipeInputs] = useState(/** @type {Record<number, { ingredient_id: string, quantity_required: string }>} */ ({}))
+  const [recipeEditInputs, setRecipeEditInputs] = useState(/** @type {Record<number, { ingredient_id: string, quantity_required: string }>} */ ({}))
+  const [recipeEditDialog, setRecipeEditDialog] = useState(
+    /** @type {{ recipeRowId: number, menuItemId: number } | null} */ (null),
+  )
   const [busyIngredientId, setBusyIngredientId] = useState(/** @type {number | null} */ (null))
   const [addingIngredient, setAddingIngredient] = useState(false)
   const [addingMenuItem, setAddingMenuItem] = useState(false)
   const [busyRecipeItemId, setBusyRecipeItemId] = useState(/** @type {number | null} */ (null))
+  const [busyRecipeRowId, setBusyRecipeRowId] = useState(/** @type {number | null} */ (null))
   const [deleteConfirm, setDeleteConfirm] = useState(
     /** @type {{ type: 'ingredient' | 'menu', id: number, name: string, input: string } | null} */ (null),
   )
@@ -249,6 +254,16 @@ export default function InventoryDashboard() {
     }
     return grouped
   }, [menuIngredientRows])
+
+  const activeRecipeEditRow = useMemo(() => {
+    if (!recipeEditDialog) return null
+    return menuIngredientRows.find((row) => row.menu_ingredient_id === recipeEditDialog.recipeRowId) ?? null
+  }, [menuIngredientRows, recipeEditDialog])
+
+  const activeRecipeEditMenuItem = useMemo(() => {
+    if (!recipeEditDialog) return null
+    return menuRows.find((row) => row.item_id === recipeEditDialog.menuItemId) ?? null
+  }, [menuRows, recipeEditDialog])
 
   const refreshFromServer = useCallback(async () => {
     if (!supabase) return
@@ -309,6 +324,33 @@ export default function InventoryDashboard() {
         [field]: value,
       },
     }))
+  }, [])
+
+  const handleRecipeEditInputChange = useCallback((recipeRowId, recipeRow, field, value) => {
+    setRecipeEditInputs((prev) => ({
+      ...prev,
+      [recipeRowId]: {
+        ingredient_id: prev[recipeRowId]?.ingredient_id ?? String(recipeRow.ingredient_id),
+        quantity_required: prev[recipeRowId]?.quantity_required ?? String(recipeRow.quantity_required),
+        [field]: value,
+      },
+    }))
+  }, [])
+
+  const openRecipeEditDialog = useCallback((recipeRow, menuItem) => {
+    setActionError(null)
+    setActionMessage(null)
+    setRecipeEditInputs((prev) => ({
+      ...prev,
+      [recipeRow.menu_ingredient_id]: {
+        ingredient_id: String(recipeRow.ingredient_id),
+        quantity_required: String(recipeRow.quantity_required),
+      },
+    }))
+    setRecipeEditDialog({
+      recipeRowId: recipeRow.menu_ingredient_id,
+      menuItemId: menuItem.item_id,
+    })
   }, [])
 
   const openDeleteConfirm = useCallback((type, id, name) => {
@@ -409,6 +451,97 @@ export default function InventoryDashboard() {
     },
     [recipeInputs, rows],
   )
+
+  const handleUpdateRecipeIngredient = useCallback(
+    async (recipeRow, menuItem) => {
+      if (!supabase) return
+
+      const input = recipeEditInputs[recipeRow.menu_ingredient_id] ?? {
+        ingredient_id: String(recipeRow.ingredient_id),
+        quantity_required: String(recipeRow.quantity_required),
+      }
+      const ingredientId = Number(input.ingredient_id)
+      const quantityRequired = Number(input.quantity_required)
+      const ingredient = rows.find((row) => row.ingredient_id === ingredientId)
+
+      setActionError(null)
+      setActionMessage(null)
+
+      if (!ingredient) {
+        setActionError('Choose an ingredient for this recipe row.')
+        return
+      }
+
+      if (!Number.isFinite(quantityRequired) || quantityRequired <= 0) {
+        setActionError('Enter a recipe quantity greater than zero.')
+        return
+      }
+
+      setBusyRecipeRowId(recipeRow.menu_ingredient_id)
+
+      const { data: updated, error } = await supabase
+        .from('menu_ingredients')
+        .update({
+          ingredient_id: ingredient.ingredient_id,
+          quantity_required: quantityRequired,
+          unit_of_measure: ingredient.unit_of_measure,
+        })
+        .eq('menu_ingredient_id', recipeRow.menu_ingredient_id)
+        .select('*')
+        .single()
+
+      setBusyRecipeRowId(null)
+
+      if (error || !updated) {
+        setActionError(error?.message ?? 'Could not update recipe ingredient.')
+        return
+      }
+
+      const row = normalizeMenuIngredientRow(updated)
+      setMenuIngredientRows((prev) =>
+        prev.map((item) => (item.menu_ingredient_id === row.menu_ingredient_id ? row : item)),
+      )
+      setRecipeEditInputs((prev) => {
+        const next = { ...prev }
+        delete next[row.menu_ingredient_id]
+        return next
+      })
+      setRecipeEditDialog(null)
+      setActionMessage(`${menuItem.name} recipe updated.`)
+    },
+    [recipeEditInputs, rows],
+  )
+
+  const handleRemoveRecipeIngredient = useCallback(async (recipeRow, menuItem) => {
+    if (!supabase) return
+
+    setActionError(null)
+    setActionMessage(null)
+    setBusyRecipeRowId(recipeRow.menu_ingredient_id)
+
+    const { error } = await supabase
+      .from('menu_ingredients')
+      .delete()
+      .eq('menu_ingredient_id', recipeRow.menu_ingredient_id)
+
+    setBusyRecipeRowId(null)
+
+    if (error) {
+      setActionError(error.message)
+      return
+    }
+
+    setMenuIngredientRows((prev) =>
+      prev.filter((item) => item.menu_ingredient_id !== recipeRow.menu_ingredient_id),
+    )
+    setRecipeEditInputs((prev) => {
+      const next = { ...prev }
+      delete next[recipeRow.menu_ingredient_id]
+      return next
+    })
+    setRecipeEditDialog(null)
+    setActionMessage(`Ingredient removed from ${menuItem.name}.`)
+  }, [])
 
   const handleAddIngredient = useCallback(async () => {
     if (!supabase) return
@@ -819,6 +952,96 @@ export default function InventoryDashboard() {
               >
                 {deleteBusy ? 'Archiving...' : 'Archive'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {recipeEditDialog && activeRecipeEditRow && activeRecipeEditMenuItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">Edit Recipe Ingredient</h3>
+            <p className="mt-1 text-sm text-gray-600">{activeRecipeEditMenuItem.name}</p>
+
+            <div className="mt-5 space-y-4">
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                Ingredient
+                <select
+                  value={
+                    recipeEditInputs[activeRecipeEditRow.menu_ingredient_id]?.ingredient_id ??
+                    String(activeRecipeEditRow.ingredient_id)
+                  }
+                  onChange={(e) =>
+                    handleRecipeEditInputChange(
+                      activeRecipeEditRow.menu_ingredient_id,
+                      activeRecipeEditRow,
+                      'ingredient_id',
+                      e.target.value,
+                    )
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal"
+                  disabled={busyRecipeRowId === activeRecipeEditRow.menu_ingredient_id || !configured || rows.length === 0}
+                >
+                  {rows.map((row) => (
+                    <option key={row.ingredient_id} value={row.ingredient_id}>
+                      {row.name} ({row.unit_of_measure})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                Quantity Required
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={
+                    recipeEditInputs[activeRecipeEditRow.menu_ingredient_id]?.quantity_required ??
+                    String(activeRecipeEditRow.quantity_required)
+                  }
+                  onChange={(e) =>
+                    handleRecipeEditInputChange(
+                      activeRecipeEditRow.menu_ingredient_id,
+                      activeRecipeEditRow,
+                      'quantity_required',
+                      e.target.value,
+                    )
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                  disabled={busyRecipeRowId === activeRecipeEditRow.menu_ingredient_id || !configured}
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+              <button
+                type="button"
+                onClick={() => handleRemoveRecipeIngredient(activeRecipeEditRow, activeRecipeEditMenuItem)}
+                disabled={busyRecipeRowId === activeRecipeEditRow.menu_ingredient_id || !configured}
+                className="rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              >
+                Remove
+              </button>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRecipeEditDialog(null)}
+                  disabled={busyRecipeRowId === activeRecipeEditRow.menu_ingredient_id}
+                  className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateRecipeIngredient(activeRecipeEditRow, activeRecipeEditMenuItem)}
+                  disabled={busyRecipeRowId === activeRecipeEditRow.menu_ingredient_id || !configured || rows.length === 0}
+                  className="rounded-full bg-[#3B2F2A] px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {busyRecipeRowId === activeRecipeEditRow.menu_ingredient_id ? 'Saving...' : 'Save'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1352,21 +1575,32 @@ export default function InventoryDashboard() {
                         No ingredients linked yet. Orders need at least one recipe ingredient to deduct stock.
                       </p>
                     ) : (
-                      <ul className="space-y-2">
+                      <ul className="space-y-3">
                         {(recipeRowsByMenuId.get(item.item_id) ?? []).map((recipeRow) => {
                           const ingredient = ingredientById.get(recipeRow.ingredient_id)
+                          const isBusy = busyRecipeRowId === recipeRow.menu_ingredient_id
 
                           return (
                             <li
                               key={recipeRow.menu_ingredient_id}
                               className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-[#FAF8F5] px-3 py-2 text-xs"
                             >
-                              <span className="font-semibold text-gray-700">
-                                {ingredient?.name ?? `Ingredient #${recipeRow.ingredient_id}`}
-                              </span>
-                              <span className="text-gray-500">
-                                {recipeRow.quantity_required} {recipeRow.unit_of_measure}
-                              </span>
+                              <div className="min-w-0">
+                                <span className="font-semibold text-gray-700">
+                                  {ingredient?.name ?? `Ingredient #${recipeRow.ingredient_id}`}
+                                </span>
+                                <span className="ml-2 text-gray-500">
+                                  {recipeRow.quantity_required} {recipeRow.unit_of_measure}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => openRecipeEditDialog(recipeRow, item)}
+                                disabled={isBusy || !configured}
+                                className="shrink-0 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                              >
+                                {isBusy ? '...' : 'Edit'}
+                              </button>
                             </li>
                           )
                         })}
