@@ -1,1 +1,133 @@
 @import "tailwindcss";
+
+:root {
+  --cozy-brown: #3b2f2a;
+  --cozy-brown-dark: #2a211d;
+  --cozy-caramel: #d98c5f;
+  --cozy-cream: #fdf8f1;
+  --cozy-sand: #f7f0e6;
+  --cozy-border: rgba(217, 140, 95, 0.35);
+}
+
+@layer base {
+  button {
+    font: inherit;
+    touch-action: manipulation;
+  }
+
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:not(:disabled):active {
+    transform: translateY(1px) scale(0.99);
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 3px solid rgba(217, 140, 95, 0.45);
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  .cozy-btn {
+    display: inline-flex;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    padding: 0.62rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 800;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(59, 47, 42, 0.08);
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      color 150ms ease,
+      opacity 150ms ease,
+      transform 100ms ease;
+  }
+
+  .cozy-btn:hover:not(:disabled) {
+    box-shadow: 0 6px 16px rgba(59, 47, 42, 0.12);
+  }
+
+  .cozy-btn:disabled {
+    opacity: 0.5;
+  }
+
+  .cozy-btn-primary {
+    background: var(--cozy-brown);
+    color: white;
+  }
+
+  .cozy-btn-primary:hover:not(:disabled) {
+    background: var(--cozy-brown-dark);
+  }
+
+  .cozy-btn-accent {
+    background: var(--cozy-caramel);
+    color: white;
+  }
+
+  .cozy-btn-accent:hover:not(:disabled) {
+    background: #c9794f;
+  }
+
+  .cozy-btn-soft {
+    border-color: rgba(59, 47, 42, 0.18);
+    background: white;
+    color: var(--cozy-brown);
+  }
+
+  .cozy-btn-soft:hover:not(:disabled) {
+    border-color: var(--cozy-border);
+    background: var(--cozy-sand);
+  }
+
+  .cozy-btn-danger {
+    border-color: rgba(185, 28, 28, 0.24);
+    background: white;
+    color: #b91c1c;
+  }
+
+  .cozy-btn-danger:hover:not(:disabled) {
+    background: #fef2f2;
+  }
+
+  .cozy-icon-btn {
+    display: inline-grid;
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+    place-items: center;
+    border-radius: 999px;
+    border: 1px solid rgba(59, 47, 42, 0.16);
+    background: white;
+    color: var(--cozy-brown);
+    box-shadow: 0 1px 2px rgba(59, 47, 42, 0.08);
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      transform 100ms ease;
+  }
+
+  .cozy-icon-btn:hover:not(:disabled) {
+    border-color: var(--cozy-border);
+    background: var(--cozy-sand);
+    box-shadow: 0 6px 16px rgba(59, 47, 42, 0.12);
+  }
+}

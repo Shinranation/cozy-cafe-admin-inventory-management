@@ -2240,13 +2240,13 @@ export default function InventoryDashboard() {
               return (
                 <article
                   key={row.ingredient_id}
-                  className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex flex-col gap-4 min-h-[280px]"
+                  className="min-w-0 bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex flex-col gap-4 min-h-[280px] overflow-hidden"
                 >
                   <div
                     className="relative aspect-[5/4] min-h-[11rem] rounded-xl bg-gradient-to-b from-[#EDE8E0] to-[#DDD5CA] ring-2 ring-dashed ring-[#C4B8A8] shadow-inner overflow-hidden"
                     aria-label={`Image placeholder for ingredient ${row.ingredient_id}`}
                   >
-                    <span className="absolute top-2 left-2 font-mono text-[10px] font-semibold text-stone-600 bg-white/90 px-1.5 py-0.5 rounded border border-stone-200">
+                    <span className="absolute top-2 left-2 max-w-[calc(100%-3.5rem)] truncate font-mono text-[10px] font-semibold text-stone-600 bg-white/90 px-1.5 py-0.5 rounded border border-stone-200">
                       ingredient_id: {row.ingredient_id}
                     </span>
                     {(low || negative) && (
@@ -2271,7 +2271,7 @@ export default function InventoryDashboard() {
                       <span className="text-[11px] font-bold uppercase tracking-wide text-stone-500">
                         Ingredient photo
                       </span>
-                      <span className="text-[10px] text-stone-500 leading-tight">
+                      <span className="max-w-full break-words text-[10px] text-stone-500 leading-tight">
                         Slot for image URL / upload
                         <br />
                         ({row.name})
@@ -2280,54 +2280,56 @@ export default function InventoryDashboard() {
                   </div>
 
                   <div>
-                    <p className="font-bold text-gray-900 leading-tight text-base">{row.name}</p>
-                    <div className="mt-2 flex flex-wrap gap-3">
+                    <p className="break-words font-bold text-gray-900 leading-tight text-base">{row.name}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => openEditRecordDialog('ingredient', row)}
-                        className="text-xs font-bold text-[#D98C5F] underline hover:opacity-80"
+                        className="cozy-btn cozy-btn-accent min-h-0 max-w-full px-3 py-2 text-xs"
                       >
                         Edit ingredient
                       </button>
                       <button
                         type="button"
                         onClick={() => openDeleteConfirm('ingredient', row.ingredient_id, row.name)}
-                        className="text-xs font-bold text-red-600 underline hover:text-red-700"
+                        className="cozy-btn cozy-btn-danger min-h-0 max-w-full px-3 py-2 text-xs"
                       >
                         Archive ingredient
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-2 py-2 text-center shadow-sm">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="min-w-0 rounded-lg border border-gray-200 bg-[#FAF8F5] px-2 py-2 text-center shadow-sm">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500 leading-tight">
-                        current_quantity
+                        Quantity
                       </p>
                       <p
-                        className={`mt-1 text-xl font-bold tabular-nums ${negative ? 'text-red-700' : 'text-gray-900'}`}
+                        className={`mt-1 break-words text-xl font-bold tabular-nums ${negative ? 'text-red-700' : 'text-gray-900'}`}
                       >
                         {row.current_quantity}
                       </p>
-                      <p className="text-[9px] text-gray-500 mt-0.5">{unitDisplay}</p>
+                      <p className="mt-0.5 break-words text-[9px] text-gray-500">{unitDisplay}</p>
                     </div>
-                    <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-2 py-2 text-center shadow-sm">
+                    <div className="min-w-0 rounded-lg border border-gray-200 bg-[#FAF8F5] px-2 py-2 text-center shadow-sm">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500 leading-tight">
-                        unit_of_measure
+                        Unit
                       </p>
-                      <p className="mt-1 text-xl font-bold text-gray-900 tracking-tight">{unitDisplay}</p>
+                      <p className="mt-1 break-words text-base font-bold text-gray-900 tracking-tight sm:text-lg">
+                        {unitDisplay}
+                      </p>
                     </div>
-                    <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-2 py-2 text-center shadow-sm">
+                    <div className="min-w-0 rounded-lg border border-gray-200 bg-[#FAF8F5] px-2 py-2 text-center shadow-sm">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500 leading-tight">
-                        low_stock
+                        Low Stock
                       </p>
-                      <p className="mt-1 text-xl font-bold tabular-nums text-gray-900">{row.low_stock}</p>
+                      <p className="mt-1 break-words text-xl font-bold tabular-nums text-gray-900">{row.low_stock}</p>
                       <p className="text-[9px] text-gray-500 mt-0.5">threshold</p>
                     </div>
                   </div>
 
                   {negative && (
-                    <p className="text-xs font-medium text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                    <p className="break-words text-xs font-medium text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                       Quantity is below zero — use Stock In to correct.
                     </p>
                   )}
@@ -2345,7 +2347,7 @@ export default function InventoryDashboard() {
                   </div>
 
                   <div className="mt-auto flex flex-col gap-2 border-t border-gray-100 pt-3">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                    <label className="min-w-0 text-[10px] font-bold text-gray-500 uppercase tracking-wide">
                       Quantity
                       <input
                         type="number"
@@ -2360,7 +2362,7 @@ export default function InventoryDashboard() {
                         disabled={busyIngredientId === row.ingredient_id}
                       />
                     </label>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                    <label className="min-w-0 text-[10px] font-bold text-gray-500 uppercase tracking-wide">
                       Stock In Cost
                       <input
                         type="number"
@@ -2375,12 +2377,12 @@ export default function InventoryDashboard() {
                         disabled={busyIngredientId === row.ingredient_id}
                       />
                     </label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       <button
                         type="button"
                         disabled={busyIngredientId === row.ingredient_id || !configured}
                         onClick={() => applyStockMovement(row, 'in')}
-                        className="flex-1 rounded-full bg-emerald-600 text-white py-2 text-xs font-bold hover:bg-emerald-700 disabled:opacity-50"
+                        className="cozy-btn min-h-0 flex-1 rounded-full bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
                       >
                         {busyIngredientId === row.ingredient_id ? '…' : 'Stock In'}
                       </button>
@@ -2388,7 +2390,7 @@ export default function InventoryDashboard() {
                         type="button"
                         disabled={busyIngredientId === row.ingredient_id || !configured}
                         onClick={() => applyStockMovement(row, 'out')}
-                        className="flex-1 rounded-full bg-amber-800 text-white py-2 text-xs font-bold hover:bg-amber-900 disabled:opacity-50"
+                        className="cozy-btn min-h-0 flex-1 rounded-full bg-amber-800 px-3 py-2 text-xs font-bold text-white hover:bg-amber-900 disabled:opacity-50"
                       >
                         {busyIngredientId === row.ingredient_id ? '…' : 'Stock Out'}
                       </button>
@@ -2436,18 +2438,18 @@ export default function InventoryDashboard() {
                       <p className="mt-1 text-xs text-gray-500">
                         {[item.category, item.size_label].filter(Boolean).join(' • ')}
                       </p>
-                      <div className="mt-2 flex flex-wrap gap-3">
+                      <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => openEditRecordDialog('menu', item)}
-                          className="text-xs font-bold text-[#D98C5F] underline hover:opacity-80"
+                          className="cozy-btn cozy-btn-accent min-h-0 px-3 py-2 text-xs"
                         >
                           Edit menu item
                         </button>
                         <button
                           type="button"
                           onClick={() => openDeleteConfirm('menu', item.item_id, item.name)}
-                          className="text-xs font-bold text-red-600 underline hover:text-red-700"
+                          className="cozy-btn cozy-btn-danger min-h-0 px-3 py-2 text-xs"
                         >
                           Archive menu item
                         </button>

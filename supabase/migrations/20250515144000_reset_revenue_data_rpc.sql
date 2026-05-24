@@ -35,16 +35,16 @@ BEGIN
     RAISE EXCEPTION 'reset_revenue_data: second confirmation phrase did not match';
   END IF;
 
-  DELETE FROM public.payments;
+  DELETE FROM public.payments WHERE true;
   GET DIAGNOSTICS v_deleted_payments = ROW_COUNT;
 
-  DELETE FROM public.order_items;
+  DELETE FROM public.order_items WHERE true;
   GET DIAGNOSTICS v_deleted_order_items = ROW_COUNT;
 
-  DELETE FROM public.orders;
+  DELETE FROM public.orders WHERE true;
   GET DIAGNOSTICS v_deleted_orders = ROW_COUNT;
 
-  DELETE FROM public.expenses;
+  DELETE FROM public.expenses WHERE true;
   GET DIAGNOSTICS v_deleted_expenses = ROW_COUNT;
 
   RETURN jsonb_build_object(
