@@ -206,6 +206,11 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
                           <p className="text-[9px] font-bold text-gray-600 uppercase leading-tight line-clamp-2">
                             {it.name}
                           </p>
+                          {it.size_label ? (
+                            <p className="text-[8px] font-bold text-gray-400 uppercase leading-tight">
+                              {it.size_label}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     </div>

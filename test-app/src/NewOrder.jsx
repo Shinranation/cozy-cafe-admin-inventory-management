@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, supabaseConfigured, defaultPosCashierId } from './lib/supabaseClient.js'
 
-/** @typedef {{ item_id: number, name: string, price: number, category: string, availability_status: string }} MenuItemRow */
+/** @typedef {{ item_id: number, name: string, size_label: string, price: number, category: string, availability_status: string }} MenuItemRow */
+
+function menuItemLabel(item) {
+  return item.size_label ? `${item.name} (${item.size_label})` : item.name
+}
 
 export default function NewOrder({ onBack, onCancel }) {
   const configured = supabaseConfigured()
@@ -24,7 +28,7 @@ export default function NewOrder({ onBack, onCancel }) {
 
     const { data, error } = await supabase
       .from('menu')
-      .select('item_id,name,price,category,availability_status')
+      .select('item_id,name,size_label,price,category,availability_status')
       .order('category')
       .order('name')
 
@@ -40,6 +44,7 @@ export default function NewOrder({ onBack, onCancel }) {
         .map((r) => ({
           item_id: Number(r.item_id),
           name: String(r.name ?? ''),
+          size_label: String(r.size_label ?? ''),
           price: Number(r.price) || 0,
           category: String(r.category ?? ''),
           availability_status: String(r.availability_status ?? ''),
@@ -81,7 +86,7 @@ export default function NewOrder({ onBack, onCancel }) {
         if (!item) return null
         return {
           id: item.item_id,
-          name: item.name,
+          name: menuItemLabel(item),
           price: item.price,
           qty: n,
           lineTotal: item.price * n,
@@ -241,6 +246,11 @@ export default function NewOrder({ onBack, onCancel }) {
                     <p className="text-center text-xs font-extrabold tracking-wide text-gray-700 uppercase">
                       {item.name}
                     </p>
+                    {item.size_label && (
+                      <p className="mt-1 text-center text-[10px] font-bold uppercase text-gray-500">
+                        {item.size_label}
+                      </p>
+                    )}
 
                     <div className="mt-3 aspect-square w-full rounded-xl border border-gray-300 bg-white relative overflow-hidden">
                       <div className="absolute inset-0 flex items-center justify-center opacity-20">

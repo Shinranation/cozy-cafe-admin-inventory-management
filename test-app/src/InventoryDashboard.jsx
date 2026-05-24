@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
 
 /** @typedef {{ ingredient_id: number, name: string, current_quantity: number, unit_of_measure: string, low_stock: number, is_active: boolean }} InventoryRow */
-/** @typedef {{ item_id: number, name: string, description: string, price: number, category: string, availability_status: string }} MenuRow */
+/** @typedef {{ item_id: number, name: string, description: string, price: number, category: string, size_label: string, availability_status: string }} MenuRow */
 /** @typedef {{ menu_ingredient_id: number, menu_item_id: number, ingredient_id: number, quantity_required: number, unit_of_measure: string }} MenuIngredientRow */
+/** @typedef {{ category_id: number, name: string, parent_category_id: number | null, is_active: boolean }} MenuCategoryRow */
 
 /** Avoid NaN when Postgres / Realtime sends null, blanks, or non-numeric strings. */
 function safeNumeric(raw, fallback = 0) {
@@ -38,6 +39,7 @@ function normalizeMenuRow(raw) {
     description: String(raw.description ?? ''),
     price: safeNumeric(raw.price, 0),
     category: String(raw.category ?? ''),
+    size_label: String(raw.size_label ?? ''),
     availability_status: String(raw.availability_status ?? ''),
   }
 }
@@ -50,6 +52,17 @@ function normalizeMenuIngredientRow(raw) {
     ingredient_id: safeNumeric(raw.ingredient_id, 0),
     quantity_required: safeNumeric(raw.quantity_required, 0),
     unit_of_measure: normalizeUnit(raw.unit_of_measure),
+  }
+}
+
+function normalizeMenuCategoryRow(raw) {
+  const id = Number(raw.category_id)
+  const parentId = raw.parent_category_id == null ? null : Number(raw.parent_category_id)
+  return {
+    category_id: Number.isFinite(id) ? id : safeNumeric(raw.category_id, 0),
+    name: String(raw.name ?? ''),
+    parent_category_id: Number.isFinite(parentId) ? parentId : null,
+    is_active: raw.is_active !== false,
   }
 }
 
@@ -76,6 +89,18 @@ function sortById(rows) {
 
 function sortMenuById(rows) {
   return [...rows].sort((a, b) => a.item_id - b.item_id)
+}
+
+function sortText(values) {
+  return [...values].sort((a, b) => a.localeCompare(b))
+}
+
+function buildCategoryPath(category, byId, seen = new Set()) {
+  if (!category || seen.has(category.category_id)) return ''
+  seen.add(category.category_id)
+  const parent = category.parent_category_id ? byId.get(category.parent_category_id) : null
+  const parentPath = parent ? buildCategoryPath(parent, byId, seen) : ''
+  return parentPath ? `${parentPath} / ${category.name}` : category.name
 }
 
 /** Skeleton slots on first load — matches your current 4-row inventory; increase if needed. */
@@ -200,6 +225,7 @@ const emptyNewMenuItem = {
   description: '',
   price: '',
   category: MENU_CATEGORIES[0],
+  size_label: '',
   availability_status: 'available',
 }
 
@@ -208,8 +234,14 @@ export default function InventoryDashboard() {
   const [rows, setRows] = useState([])
   /** @type {[MenuRow[], React.Dispatch<React.SetStateAction<MenuRow[]>>]} */
   const [menuRows, setMenuRows] = useState([])
+  /** @type {[InventoryRow[], React.Dispatch<React.SetStateAction<InventoryRow[]>>]} */
+  const [archivedRows, setArchivedRows] = useState([])
+  /** @type {[MenuRow[], React.Dispatch<React.SetStateAction<MenuRow[]>>]} */
+  const [archivedMenuRows, setArchivedMenuRows] = useState([])
   /** @type {[MenuIngredientRow[], React.Dispatch<React.SetStateAction<MenuIngredientRow[]>>]} */
   const [menuIngredientRows, setMenuIngredientRows] = useState([])
+  /** @type {[MenuCategoryRow[], React.Dispatch<React.SetStateAction<MenuCategoryRow[]>>]} */
+  const [categoryRows, setCategoryRows] = useState([])
   const configured = supabaseConfigured()
   const [loading, setLoading] = useState(configured)
   const [fetchError, setFetchError] = useState(/** @type {string | null} */ (null))
@@ -221,6 +253,14 @@ export default function InventoryDashboard() {
   const [addMode, setAddMode] = useState('ingredient')
   const [newIngredient, setNewIngredient] = useState(emptyNewIngredient)
   const [newMenuItem, setNewMenuItem] = useState(emptyNewMenuItem)
+  const [customMenuCategory, setCustomMenuCategory] = useState('')
+  const [newCategory, setNewCategory] = useState({ name: '', parent_category_id: '' })
+  const [addingCategory, setAddingCategory] = useState(false)
+  const [editRecordDialog, setEditRecordDialog] = useState(
+    /** @type {{ type: 'ingredient' | 'menu', id: number } | null} */ (null),
+  )
+  const [editRecordInputs, setEditRecordInputs] = useState(/** @type {Record<string, string>} */ ({}))
+  const [editRecordBusy, setEditRecordBusy] = useState(false)
   const [recipeInputs, setRecipeInputs] = useState(/** @type {Record<number, { ingredient_id: string, quantity_required: string }>} */ ({}))
   const [recipeEditInputs, setRecipeEditInputs] = useState(/** @type {Record<number, { ingredient_id: string, quantity_required: string }>} */ ({}))
   const [recipeEditDialog, setRecipeEditDialog] = useState(
@@ -234,7 +274,11 @@ export default function InventoryDashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState(
     /** @type {{ type: 'ingredient' | 'menu', id: number, name: string, input: string } | null} */ (null),
   )
+  const [permanentDeleteConfirm, setPermanentDeleteConfirm] = useState(
+    /** @type {{ type: 'ingredient' | 'menu', id: number, name: string, input: string } | null} */ (null),
+  )
   const [deleteBusy, setDeleteBusy] = useState(false)
+  const [permanentDeleteBusy, setPermanentDeleteBusy] = useState(false)
   const [actionError, setActionError] = useState(/** @type {string | null} */ (null))
   const [actionMessage, setActionMessage] = useState(/** @type {string | null} */ (null))
 
@@ -265,6 +309,40 @@ export default function InventoryDashboard() {
     return menuRows.find((row) => row.item_id === recipeEditDialog.menuItemId) ?? null
   }, [menuRows, recipeEditDialog])
 
+  const menuCategoryOptions = useMemo(() => {
+    const categories = new Set()
+    const byId = new Map(categoryRows.map((row) => [row.category_id, row]))
+    for (const row of categoryRows.filter((category) => category.is_active)) {
+      const path = buildCategoryPath(row, byId)
+      if (path) categories.add(path)
+    }
+    for (const category of MENU_CATEGORIES) categories.add(category)
+    for (const row of [...menuRows, ...archivedMenuRows]) {
+      if (row.category) categories.add(row.category)
+    }
+    if (customMenuCategory.trim()) categories.add(customMenuCategory.trim())
+    return sortText([...categories])
+  }, [archivedMenuRows, categoryRows, customMenuCategory, menuRows])
+
+  const categoryRowsWithPath = useMemo(() => {
+    const byId = new Map(categoryRows.map((row) => [row.category_id, row]))
+    return categoryRows
+      .filter((row) => row.is_active)
+      .map((row) => ({ ...row, path: buildCategoryPath(row, byId) }))
+      .filter((row) => row.path)
+      .sort((a, b) => a.path.localeCompare(b.path))
+  }, [categoryRows])
+
+  const activeEditIngredient = useMemo(() => {
+    if (editRecordDialog?.type !== 'ingredient') return null
+    return rows.find((row) => row.ingredient_id === editRecordDialog.id) ?? null
+  }, [editRecordDialog, rows])
+
+  const activeEditMenuItem = useMemo(() => {
+    if (editRecordDialog?.type !== 'menu') return null
+    return menuRows.find((row) => row.item_id === editRecordDialog.id) ?? null
+  }, [editRecordDialog, menuRows])
+
   const refreshFromServer = useCallback(async () => {
     if (!supabase) return
     setFetchError(null)
@@ -272,9 +350,12 @@ export default function InventoryDashboard() {
     if (error) {
       setFetchError(error.message)
       setRows([])
+      setArchivedRows([])
       return
     }
-    setRows(sortById((data ?? []).map(normalizeInventoryRow).filter((row) => row.is_active)))
+    const nextRows = (data ?? []).map(normalizeInventoryRow)
+    setRows(sortById(nextRows.filter((row) => row.is_active)))
+    setArchivedRows(sortById(nextRows.filter((row) => !row.is_active)))
   }, [])
 
   const refreshMenuFromServer = useCallback(async () => {
@@ -284,14 +365,17 @@ export default function InventoryDashboard() {
     if (error) {
       setFetchError(error.message)
       setMenuRows([])
+      setArchivedMenuRows([])
       return
     }
+    const nextMenuRows = (data ?? []).map(normalizeMenuRow)
     setMenuRows(
       sortMenuById(
-        (data ?? [])
-          .map(normalizeMenuRow)
-          .filter((row) => row.availability_status.toLowerCase() !== 'unavailable'),
+        nextMenuRows.filter((row) => row.availability_status.toLowerCase() !== 'unavailable'),
       ),
+    )
+    setArchivedMenuRows(
+      sortMenuById(nextMenuRows.filter((row) => row.availability_status.toLowerCase() === 'unavailable')),
     )
   }, [])
 
@@ -307,12 +391,59 @@ export default function InventoryDashboard() {
     setMenuIngredientRows((data ?? []).map(normalizeMenuIngredientRow))
   }, [])
 
+  const refreshCategoriesFromServer = useCallback(async () => {
+    if (!supabase) return
+    setFetchError(null)
+    const { data, error } = await supabase.from('menu_categories').select('*').order('name')
+    if (error) {
+      setFetchError(error.message)
+      setCategoryRows([])
+      return
+    }
+    setCategoryRows((data ?? []).map(normalizeMenuCategoryRow))
+  }, [])
+
   const handleNewIngredientChange = useCallback((field, value) => {
     setNewIngredient((prev) => ({ ...prev, [field]: value }))
   }, [])
 
   const handleNewMenuItemChange = useCallback((field, value) => {
     setNewMenuItem((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const handleNewCategoryChange = useCallback((field, value) => {
+    setNewCategory((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const handleEditRecordInputChange = useCallback((field, value) => {
+    setEditRecordInputs((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const openEditRecordDialog = useCallback((type, record) => {
+    setActionError(null)
+    setActionMessage(null)
+
+    if (type === 'ingredient') {
+      setEditRecordInputs({
+        name: record.name,
+        current_quantity: String(record.current_quantity),
+        unit_of_measure: record.unit_of_measure === 'â€”' ? '' : record.unit_of_measure,
+        low_stock: String(record.low_stock),
+      })
+      setEditRecordDialog({ type, id: record.ingredient_id })
+      return
+    }
+
+    setEditRecordInputs({
+      name: record.name,
+      description: record.description,
+      price: String(record.price),
+      category: record.category,
+      customCategory: '',
+      size_label: record.size_label,
+      availability_status: record.availability_status || 'available',
+    })
+    setEditRecordDialog({ type, id: record.item_id })
   }, [])
 
   const handleRecipeInputChange = useCallback((itemId, field, value) => {
@@ -359,9 +490,158 @@ export default function InventoryDashboard() {
     setDeleteConfirm({ type, id, name, input: '' })
   }, [])
 
+  const openPermanentDeleteConfirm = useCallback((type, id, name) => {
+    setActionError(null)
+    setActionMessage(null)
+    setPermanentDeleteConfirm({ type, id, name, input: '' })
+  }, [])
+
   const handleDeleteConfirmInput = useCallback((value) => {
     setDeleteConfirm((prev) => (prev ? { ...prev, input: value } : prev))
   }, [])
+
+  const handlePermanentDeleteConfirmInput = useCallback((value) => {
+    setPermanentDeleteConfirm((prev) => (prev ? { ...prev, input: value } : prev))
+  }, [])
+
+  const handleSaveEditedRecord = useCallback(async () => {
+    if (!supabase || !editRecordDialog) return
+
+    setActionError(null)
+    setActionMessage(null)
+    setEditRecordBusy(true)
+
+    if (editRecordDialog.type === 'ingredient') {
+      const name = editRecordInputs.name?.trim() ?? ''
+      const unit = editRecordInputs.unit_of_measure?.trim() ?? ''
+      const quantity = parseNonNegativeAmount(editRecordInputs.current_quantity, 0)
+      const lowStock = parseNonNegativeAmount(editRecordInputs.low_stock, 0)
+
+      if (!name) {
+        setActionError('Enter an ingredient name.')
+        setEditRecordBusy(false)
+        return
+      }
+
+      if (!unit) {
+        setActionError('Enter a unit of measure.')
+        setEditRecordBusy(false)
+        return
+      }
+
+      if (Number.isNaN(quantity) || Number.isNaN(lowStock)) {
+        setActionError('Quantity and low stock must be zero or higher.')
+        setEditRecordBusy(false)
+        return
+      }
+
+      const { data: updated, error } = await supabase
+        .from('inventory')
+        .update({
+          name,
+          current_quantity: quantity,
+          unit_of_measure: unit,
+          low_stock: lowStock,
+        })
+        .eq('ingredient_id', editRecordDialog.id)
+        .select('*')
+        .single()
+
+      if (!error) {
+        await supabase
+          .from('menu_ingredients')
+          .update({ unit_of_measure: unit })
+          .eq('ingredient_id', editRecordDialog.id)
+      }
+
+      setEditRecordBusy(false)
+
+      if (error || !updated) {
+        setActionError(error?.message ?? 'Could not update ingredient.')
+        return
+      }
+
+      const row = normalizeInventoryRow(updated)
+      setRows((prev) => sortById(prev.map((item) => (item.ingredient_id === row.ingredient_id ? row : item))))
+      setMenuIngredientRows((prev) =>
+        prev.map((item) =>
+          item.ingredient_id === row.ingredient_id
+            ? { ...item, unit_of_measure: row.unit_of_measure }
+            : item,
+        ),
+      )
+      setEditRecordDialog(null)
+      setActionMessage(`${row.name} updated.`)
+      return
+    }
+
+    const name = editRecordInputs.name?.trim() ?? ''
+    const description = editRecordInputs.description?.trim() ?? ''
+    const price = Number(editRecordInputs.price)
+    const category =
+      editRecordInputs.category === '__custom__'
+        ? editRecordInputs.customCategory?.trim() ?? ''
+        : editRecordInputs.category?.trim() ?? ''
+    const sizeLabel = editRecordInputs.size_label?.trim() ?? ''
+    const availability = editRecordInputs.availability_status?.trim() || 'available'
+
+    if (!name) {
+      setActionError('Enter a menu item name.')
+      setEditRecordBusy(false)
+      return
+    }
+
+    if (!description) {
+      setActionError('Enter a menu item description.')
+      setEditRecordBusy(false)
+      return
+    }
+
+    if (!Number.isFinite(price) || price <= 0) {
+      setActionError('Enter a menu item price greater than zero.')
+      setEditRecordBusy(false)
+      return
+    }
+
+    if (!category) {
+      setActionError('Choose or enter a menu category.')
+      setEditRecordBusy(false)
+      return
+    }
+
+    const { data: updated, error } = await supabase
+      .from('menu')
+      .update({
+        name,
+        description,
+        price,
+        category,
+        size_label: sizeLabel || null,
+        availability_status: availability,
+      })
+      .eq('item_id', editRecordDialog.id)
+      .select('*')
+      .single()
+
+    setEditRecordBusy(false)
+
+    if (error || !updated) {
+      setActionError(error?.message ?? 'Could not update menu item.')
+      return
+    }
+
+    const row = normalizeMenuRow(updated)
+    if (row.availability_status.toLowerCase() === 'unavailable') {
+      setMenuRows((prev) => prev.filter((item) => item.item_id !== row.item_id))
+      setArchivedMenuRows((prev) =>
+        sortMenuById([...prev.filter((item) => item.item_id !== row.item_id), row]),
+      )
+    } else {
+      setMenuRows((prev) => sortMenuById(prev.map((item) => (item.item_id === row.item_id ? row : item))))
+    }
+    setEditRecordDialog(null)
+    setActionMessage(`${row.name} updated.`)
+  }, [editRecordDialog, editRecordInputs])
 
   const handleConfirmedDelete = useCallback(async () => {
     if (!supabase || !deleteConfirm || deleteConfirm.input.trim().toLowerCase() !== 'yes') return
@@ -385,16 +665,147 @@ export default function InventoryDashboard() {
     }
 
     if (deleteConfirm.type === 'ingredient') {
-      setRows((prev) => prev.filter((row) => row.ingredient_id !== deleteConfirm.id))
+      setRows((prev) => {
+        const archived = prev.find((row) => row.ingredient_id === deleteConfirm.id)
+        if (archived) {
+          setArchivedRows((existing) => sortById([...existing, { ...archived, is_active: false }]))
+        }
+        return prev.filter((row) => row.ingredient_id !== deleteConfirm.id)
+      })
       setMenuIngredientRows((prev) => prev.filter((row) => row.ingredient_id !== deleteConfirm.id))
     } else {
-      setMenuRows((prev) => prev.filter((row) => row.item_id !== deleteConfirm.id))
+      setMenuRows((prev) => {
+        const archived = prev.find((row) => row.item_id === deleteConfirm.id)
+        if (archived) {
+          setArchivedMenuRows((existing) =>
+            sortMenuById([...existing, { ...archived, availability_status: 'unavailable' }]),
+          )
+        }
+        return prev.filter((row) => row.item_id !== deleteConfirm.id)
+      })
       setMenuIngredientRows((prev) => prev.filter((row) => row.menu_item_id !== deleteConfirm.id))
     }
 
     setActionMessage(`${deleteConfirm.name} archived.`)
     setDeleteConfirm(null)
   }, [deleteConfirm])
+
+  const handleConfirmedPermanentDelete = useCallback(async () => {
+    if (
+      !supabase ||
+      !permanentDeleteConfirm ||
+      permanentDeleteConfirm.input.trim() !== 'DELETE PERMANENTLY'
+    ) {
+      return
+    }
+
+    setPermanentDeleteBusy(true)
+    setActionError(null)
+    setActionMessage(null)
+
+    const { error } = await supabase.rpc('permanent_delete_archived_item', {
+      p_item_type: permanentDeleteConfirm.type,
+      p_item_id: permanentDeleteConfirm.id,
+      p_confirm: permanentDeleteConfirm.input.trim(),
+    })
+
+    setPermanentDeleteBusy(false)
+
+    if (error) {
+      setActionError(error.message)
+      return
+    }
+
+    if (permanentDeleteConfirm.type === 'ingredient') {
+      setArchivedRows((prev) => prev.filter((row) => row.ingredient_id !== permanentDeleteConfirm.id))
+      setMenuIngredientRows((prev) => prev.filter((row) => row.ingredient_id !== permanentDeleteConfirm.id))
+    } else {
+      setArchivedMenuRows((prev) => prev.filter((row) => row.item_id !== permanentDeleteConfirm.id))
+      setMenuIngredientRows((prev) => prev.filter((row) => row.menu_item_id !== permanentDeleteConfirm.id))
+    }
+
+    setActionMessage(`${permanentDeleteConfirm.name} permanently deleted.`)
+    setPermanentDeleteConfirm(null)
+  }, [permanentDeleteConfirm])
+
+  const handleAddCategory = useCallback(async () => {
+    if (!supabase) return
+
+    const name = newCategory.name.trim()
+    const parentId = newCategory.parent_category_id ? Number(newCategory.parent_category_id) : null
+
+    setActionError(null)
+    setActionMessage(null)
+
+    if (!name) {
+      setActionError('Enter a category name.')
+      return
+    }
+
+    setAddingCategory(true)
+    const { data: inserted, error } = await supabase
+      .from('menu_categories')
+      .insert({
+        name,
+        parent_category_id: parentId,
+        is_active: true,
+      })
+      .select('*')
+      .single()
+
+    setAddingCategory(false)
+
+    if (error || !inserted) {
+      setActionError(error?.message ?? 'Could not add category.')
+      return
+    }
+
+    const row = normalizeMenuCategoryRow(inserted)
+    setCategoryRows((prev) => [...prev.filter((item) => item.category_id !== row.category_id), row])
+    setNewCategory({ name: '', parent_category_id: '' })
+    setActionMessage(`${name} category added.`)
+  }, [newCategory])
+
+  const handleDeleteCategory = useCallback(
+    async (category) => {
+      if (!supabase) return
+
+      const childCount = categoryRows.filter(
+        (row) => row.is_active && row.parent_category_id === category.category_id,
+      ).length
+      const inUse = [...menuRows, ...archivedMenuRows].some((row) => row.category === category.path)
+
+      setActionError(null)
+      setActionMessage(null)
+
+      if (childCount > 0) {
+        setActionError('Delete or move child categories before deleting this category.')
+        return
+      }
+
+      if (inUse) {
+        setActionError('This category is still used by a menu item. Edit those menu items first.')
+        return
+      }
+
+      const { data: updated, error } = await supabase
+        .from('menu_categories')
+        .update({ is_active: false })
+        .eq('category_id', category.category_id)
+        .select('*')
+        .single()
+
+      if (error || !updated) {
+        setActionError(error?.message ?? 'Could not delete category.')
+        return
+      }
+
+      const row = normalizeMenuCategoryRow(updated)
+      setCategoryRows((prev) => prev.map((item) => (item.category_id === row.category_id ? row : item)))
+      setActionMessage(`${category.path} category deleted.`)
+    },
+    [archivedMenuRows, categoryRows, menuRows],
+  )
 
   const handleAddRecipeIngredient = useCallback(
     async (menuItem) => {
@@ -642,7 +1053,11 @@ export default function InventoryDashboard() {
     const name = newMenuItem.name.trim()
     const description = newMenuItem.description.trim()
     const price = Number(newMenuItem.price)
-    const category = newMenuItem.category.trim()
+    const category =
+      newMenuItem.category === '__custom__'
+        ? customMenuCategory.trim()
+        : newMenuItem.category.trim()
+    const sizeLabel = newMenuItem.size_label.trim()
     const availability = newMenuItem.availability_status.trim()
 
     setActionError(null)
@@ -677,6 +1092,7 @@ export default function InventoryDashboard() {
         description,
         price,
         category,
+        size_label: sizeLabel || null,
         availability_status: availability,
         inventory_ingredient_id: null,
       })
@@ -692,10 +1108,11 @@ export default function InventoryDashboard() {
       }
       setActionMessage(`${name} added to menu.`)
       setNewMenuItem(emptyNewMenuItem)
+      setCustomMenuCategory('')
     }
 
     setAddingMenuItem(false)
-  }, [newMenuItem])
+  }, [customMenuCategory, newMenuItem])
 
   /** Stock In / Out: update `inventory`, then insert `inventory_transactions` (see ERD: quantity_change). */
   const applyStockMovement = useCallback(
@@ -810,33 +1227,43 @@ export default function InventoryDashboard() {
       setLoading(true)
       setFetchError(null)
       try {
-        const [inventoryResult, menuResult, menuIngredientsResult] = await Promise.all([
+        const [inventoryResult, menuResult, menuIngredientsResult, categoriesResult] = await Promise.all([
           supabase.from('inventory').select('*').order('ingredient_id'),
           supabase.from('menu').select('*').order('item_id'),
           supabase.from('menu_ingredients').select('*').order('menu_ingredient_id'),
+          supabase.from('menu_categories').select('*').order('name'),
         ])
         if (cancelled) return
 
-        if (inventoryResult.error || menuResult.error || menuIngredientsResult.error) {
+        if (inventoryResult.error || menuResult.error || menuIngredientsResult.error || categoriesResult.error) {
           setFetchError(
             inventoryResult.error?.message ??
               menuResult.error?.message ??
               menuIngredientsResult.error?.message ??
+              categoriesResult.error?.message ??
               'Could not load dashboard data.',
           )
           setRows([])
           setMenuRows([])
+          setArchivedRows([])
+          setArchivedMenuRows([])
           setMenuIngredientRows([])
+          setCategoryRows([])
         } else {
-          setRows(sortById((inventoryResult.data ?? []).map(normalizeInventoryRow).filter((row) => row.is_active)))
+          const nextInventoryRows = (inventoryResult.data ?? []).map(normalizeInventoryRow)
+          const nextMenuRows = (menuResult.data ?? []).map(normalizeMenuRow)
+          setRows(sortById(nextInventoryRows.filter((row) => row.is_active)))
+          setArchivedRows(sortById(nextInventoryRows.filter((row) => !row.is_active)))
           setMenuRows(
             sortMenuById(
-              (menuResult.data ?? [])
-                .map(normalizeMenuRow)
-                .filter((row) => row.availability_status.toLowerCase() !== 'unavailable'),
+              nextMenuRows.filter((row) => row.availability_status.toLowerCase() !== 'unavailable'),
             ),
           )
+          setArchivedMenuRows(
+            sortMenuById(nextMenuRows.filter((row) => row.availability_status.toLowerCase() === 'unavailable')),
+          )
           setMenuIngredientRows((menuIngredientsResult.data ?? []).map(normalizeMenuIngredientRow))
+          setCategoryRows((categoriesResult.data ?? []).map(normalizeMenuCategoryRow))
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -923,6 +1350,176 @@ export default function InventoryDashboard() {
         </div>
       )}
 
+      {editRecordDialog && (activeEditIngredient || activeEditMenuItem) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">
+              Edit {editRecordDialog.type === 'ingredient' ? 'Ingredient' : 'Menu Item'}
+            </h3>
+
+            {editRecordDialog.type === 'ingredient' ? (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:col-span-2">
+                  Ingredient name
+                  <input
+                    type="text"
+                    value={editRecordInputs.name ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('name', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Current quantity
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editRecordInputs.current_quantity ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('current_quantity', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Unit
+                  <input
+                    type="text"
+                    value={editRecordInputs.unit_of_measure ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('unit_of_measure', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Low stock
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editRecordInputs.low_stock ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('low_stock', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Menu item
+                  <input
+                    type="text"
+                    value={editRecordInputs.name ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('name', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Price
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editRecordInputs.price ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('price', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Size
+                  <input
+                    type="text"
+                    value={editRecordInputs.size_label ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('size_label', e.target.value)}
+                    placeholder="12oz, 16oz, 190ml"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:col-span-2">
+                  Description
+                  <input
+                    type="text"
+                    value={editRecordInputs.description ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('description', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Category
+                  <select
+                    value={editRecordInputs.category ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('category', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  >
+                    {menuCategoryOptions.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                    <option value="__custom__">Add new category...</option>
+                  </select>
+                  {editRecordInputs.category === '__custom__' && (
+                    <input
+                      type="text"
+                      value={editRecordInputs.customCategory ?? ''}
+                      onChange={(e) => handleEditRecordInputChange('customCategory', e.target.value)}
+                      placeholder="New category"
+                      className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                      disabled={editRecordBusy}
+                    />
+                  )}
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Status
+                  <select
+                    value={editRecordInputs.availability_status ?? 'available'}
+                    onChange={(e) => handleEditRecordInputChange('availability_status', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  >
+                    <option value="available">available</option>
+                    <option value="unavailable">unavailable</option>
+                  </select>
+                </label>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditRecordDialog(null)}
+                disabled={editRecordBusy}
+                className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveEditedRecord()}
+                disabled={editRecordBusy || !configured}
+                className="rounded-full bg-[#3B2F2A] px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {editRecordBusy ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
@@ -958,6 +1555,47 @@ export default function InventoryDashboard() {
                 className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {deleteBusy ? 'Archiving...' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {permanentDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">Permanently delete?</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              This will permanently delete <span className="font-bold text-gray-900">{permanentDeleteConfirm.name}</span> from archived{' '}
+              <span className="font-bold">{permanentDeleteConfirm.type === 'ingredient' ? 'ingredients' : 'menu items'}</span>.
+              This cannot be undone. Type <span className="font-bold">DELETE PERMANENTLY</span> to continue.
+            </p>
+
+            <input
+              type="text"
+              value={permanentDeleteConfirm.input}
+              onChange={(e) => handlePermanentDeleteConfirmInput(e.target.value)}
+              placeholder="DELETE PERMANENTLY"
+              className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              disabled={permanentDeleteBusy}
+            />
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPermanentDeleteConfirm(null)}
+                disabled={permanentDeleteBusy}
+                className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmedPermanentDelete}
+                disabled={permanentDeleteBusy || permanentDeleteConfirm.input.trim() !== 'DELETE PERMANENTLY'}
+                className="rounded-full bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-800 disabled:opacity-50"
+              >
+                {permanentDeleteBusy ? 'Deleting...' : 'Delete forever'}
               </button>
             </div>
           </div>
@@ -1079,6 +1717,7 @@ export default function InventoryDashboard() {
                 refreshFromServer(),
                 refreshMenuFromServer(),
                 refreshMenuIngredientsFromServer(),
+                refreshCategoriesFromServer(),
               ]).finally(() => setLoading(false))
             }}
             className="text-xs font-bold underline text-[#D98C5F]"
@@ -1111,7 +1750,7 @@ export default function InventoryDashboard() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 overflow-hidden rounded-full border border-gray-300 bg-gray-50 p-1 text-xs font-bold">
+          <div className="grid grid-cols-3 overflow-hidden rounded-full border border-gray-300 bg-gray-50 p-1 text-xs font-bold">
             <button
               type="button"
               onClick={() => setAddMode('ingredient')}
@@ -1130,10 +1769,23 @@ export default function InventoryDashboard() {
             >
               Menu Item
             </button>
+            <button
+              type="button"
+              onClick={() => setAddMode('archived')}
+              className={`rounded-full px-4 py-2 transition ${
+                addMode === 'archived' ? 'bg-[#D98C5F] text-white shadow-sm' : 'text-gray-600'
+              }`}
+            >
+              Archived
+            </button>
           </div>
         </div>
 
-        {addMode === 'ingredient' ? (
+        {addMode === 'archived' ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Archived records are hidden from active inventory and menu lists. Permanent delete is available below for rows you no longer need.
+          </div>
+        ) : addMode === 'ingredient' ? (
           <div className="grid gap-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr_auto]">
             <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
               Ingredient
@@ -1211,7 +1863,7 @@ export default function InventoryDashboard() {
             </button>
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-[1.2fr_1.5fr_0.7fr_1fr_0.8fr_auto]">
+          <div className="grid gap-3 md:grid-cols-[1.2fr_1.5fr_0.7fr_0.7fr_1fr_0.8fr_auto]">
             <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
               Menu Item
               <input
@@ -1251,6 +1903,18 @@ export default function InventoryDashboard() {
             </label>
 
             <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+              Size
+              <input
+                type="text"
+                value={newMenuItem.size_label}
+                onChange={(e) => handleNewMenuItemChange('size_label', e.target.value)}
+                placeholder="12oz"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                disabled={addingMenuItem || !configured}
+              />
+            </label>
+
+            <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
               Category
               <select
                 value={newMenuItem.category}
@@ -1258,12 +1922,23 @@ export default function InventoryDashboard() {
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
                 disabled={addingMenuItem || !configured}
               >
-                {MENU_CATEGORIES.map((category) => (
+                {menuCategoryOptions.map((category) => (
                   <option key={category} value={category}>
                     {category}
                   </option>
                 ))}
+                <option value="__custom__">Add new category...</option>
               </select>
+              {newMenuItem.category === '__custom__' && (
+                <input
+                  type="text"
+                  value={customMenuCategory}
+                  onChange={(e) => setCustomMenuCategory(e.target.value)}
+                  placeholder="New category"
+                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                  disabled={addingMenuItem || !configured}
+                />
+              )}
             </label>
 
             <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
@@ -1290,6 +1965,218 @@ export default function InventoryDashboard() {
           </div>
         )}
       </section>
+
+      {addMode === 'menu' && (
+        <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">Menu Categories</h3>
+              <p className="text-xs text-gray-500">
+                Add a parent category, or choose a parent to create a category inside it.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+              Category name
+              <input
+                type="text"
+                value={newCategory.name}
+                onChange={(e) => handleNewCategoryChange('name', e.target.value)}
+                placeholder="Coffee"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                disabled={addingCategory || !configured}
+              />
+            </label>
+
+            <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+              Parent category
+              <select
+                value={newCategory.parent_category_id}
+                onChange={(e) => handleNewCategoryChange('parent_category_id', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal"
+                disabled={addingCategory || !configured}
+              >
+                <option value="">No parent</option>
+                {categoryRowsWithPath.map((category) => (
+                  <option key={category.category_id} value={category.category_id}>
+                    {category.path}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              type="button"
+              onClick={handleAddCategory}
+              disabled={addingCategory || !configured}
+              className="self-end rounded-full bg-[#3B2F2A] px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              {addingCategory ? 'Adding...' : 'Add Category'}
+            </button>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            {categoryRowsWithPath.length === 0 ? (
+              <p className="text-sm text-gray-500">No saved categories yet.</p>
+            ) : (
+              categoryRowsWithPath.map((category) => {
+                const childCount = categoryRows.filter(
+                  (row) => row.is_active && row.parent_category_id === category.category_id,
+                ).length
+                const inUse = [...menuRows, ...archivedMenuRows].some((row) => row.category === category.path)
+                return (
+                  <span
+                    key={category.category_id}
+                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-[#FAF8F5] px-3 py-1.5 text-xs font-semibold text-gray-700"
+                  >
+                    {category.path}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCategory(category)}
+                      disabled={childCount > 0 || inUse || !configured}
+                      title={
+                        childCount > 0
+                          ? 'Delete child categories first.'
+                          : inUse
+                            ? 'Edit menu items using this category first.'
+                            : 'Delete category'
+                      }
+                      className="font-bold text-red-600 disabled:cursor-not-allowed disabled:text-gray-300"
+                    >
+                      Delete
+                    </button>
+                  </span>
+                )
+              })
+            )}
+          </div>
+        </section>
+      )}
+
+      {addMode === 'archived' && (
+        <section className="mb-12 space-y-8" aria-label="Archived records">
+          <div>
+            <h3 className="text-sm font-bold text-gray-600 mb-4 inline-flex flex-wrap items-center gap-2 rounded-full bg-white border border-gray-200 px-3 py-1">
+              Archived Ingredients
+              <span className="font-normal text-gray-400 normal-case">
+                {archivedRows.length} item{archivedRows.length !== 1 ? 's' : ''}
+              </span>
+            </h3>
+
+            {archivedRows.length === 0 ? (
+              <div className="rounded-2xl border-2 border-dashed border-gray-300 bg-white/80 px-6 py-8 text-center text-sm text-gray-600">
+                No archived ingredients.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {archivedRows.map((row) => (
+                  <article
+                    key={row.ingredient_id}
+                    className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900">{row.name}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {row.current_quantity} {row.unit_of_measure} on hand
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-bold uppercase text-red-700">
+                        Archived
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
+                      <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-3 py-2">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500">ingredient_id</p>
+                        <p className="mt-1 text-lg font-bold text-gray-900">{row.ingredient_id}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-3 py-2">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500">low_stock</p>
+                        <p className="mt-1 text-lg font-bold text-gray-900">{row.low_stock}</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openPermanentDeleteConfirm('ingredient', row.ingredient_id, row.name)}
+                      disabled={!configured}
+                      className="mt-4 rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Delete permanently
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h3 className="text-sm font-bold text-gray-600 mb-4 inline-flex flex-wrap items-center gap-2 rounded-full bg-white border border-gray-200 px-3 py-1">
+              Archived Menu Items
+              <span className="font-normal text-gray-400 normal-case">
+                {archivedMenuRows.length} item{archivedMenuRows.length !== 1 ? 's' : ''}
+              </span>
+            </h3>
+
+            {archivedMenuRows.length === 0 ? (
+              <div className="rounded-2xl border-2 border-dashed border-gray-300 bg-white/80 px-6 py-8 text-center text-sm text-gray-600">
+                No archived menu items.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {archivedMenuRows.map((item) => (
+                  <article
+                    key={item.item_id}
+                    className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900">{item.name}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {[item.category, item.size_label].filter(Boolean).join(' • ')}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-bold uppercase text-red-700">
+                        Archived
+                      </span>
+                    </div>
+
+                    <p className="mt-3 text-sm text-gray-600">{item.description}</p>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
+                      <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-3 py-2">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500">item_id</p>
+                        <p className="mt-1 text-lg font-bold text-gray-900">{item.item_id}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-3 py-2">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500">price</p>
+                        <p className="mt-1 text-lg font-bold text-[#D98C5F]">
+                          â‚±{item.price.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openPermanentDeleteConfirm('menu', item.item_id, item.name)}
+                      disabled={!configured}
+                      className="mt-4 rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Delete permanently
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {loading && configured && addMode === 'ingredient' && rows.length === 0 && !fetchError && (
         <section className="mb-12" aria-busy="true" aria-label="Loading ingredient cards">
@@ -1394,13 +2281,22 @@ export default function InventoryDashboard() {
 
                   <div>
                     <p className="font-bold text-gray-900 leading-tight text-base">{row.name}</p>
-                    <button
-                      type="button"
-                      onClick={() => openDeleteConfirm('ingredient', row.ingredient_id, row.name)}
-                      className="mt-2 text-xs font-bold text-red-600 underline hover:text-red-700"
-                    >
-                      Archive ingredient
-                    </button>
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openEditRecordDialog('ingredient', row)}
+                        className="text-xs font-bold text-[#D98C5F] underline hover:opacity-80"
+                      >
+                        Edit ingredient
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openDeleteConfirm('ingredient', row.ingredient_id, row.name)}
+                        className="text-xs font-bold text-red-600 underline hover:text-red-700"
+                      >
+                        Archive ingredient
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2">
@@ -1537,14 +2433,25 @@ export default function InventoryDashboard() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="font-bold text-gray-900 leading-tight">{item.name}</p>
-                      <p className="mt-1 text-xs text-gray-500">{item.category}</p>
-                      <button
-                        type="button"
-                        onClick={() => openDeleteConfirm('menu', item.item_id, item.name)}
-                        className="mt-2 text-xs font-bold text-red-600 underline hover:text-red-700"
-                      >
-                        Archive menu item
-                      </button>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {[item.category, item.size_label].filter(Boolean).join(' • ')}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openEditRecordDialog('menu', item)}
+                          className="text-xs font-bold text-[#D98C5F] underline hover:opacity-80"
+                        >
+                          Edit menu item
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openDeleteConfirm('menu', item.item_id, item.name)}
+                          className="text-xs font-bold text-red-600 underline hover:text-red-700"
+                        >
+                          Archive menu item
+                        </button>
+                      </div>
                     </div>
 
                     <span

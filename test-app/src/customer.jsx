@@ -23,6 +23,7 @@ function normalizeMenuRows(rows) {
       return {
         id: Number(r.item_id),
         name: String(r.name ?? ''),
+        sizeLabel: String(r.size_label ?? ''),
         description: String(r.description ?? ''),
         category: String(r.category ?? ''),
         price: Number(r.price),
@@ -55,6 +56,26 @@ function mergeMenuRows(primaryRows, fallbackRows) {
   })
 }
 
+function splitCategory(category) {
+  return String(category || '')
+    .split('/')
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function rootCategory(item) {
+  return splitCategory(item.category)[0] || 'Other'
+}
+
+function subCategory(item) {
+  const parts = splitCategory(item.category)
+  return parts.length > 1 ? parts.slice(1).join(' / ') : ''
+}
+
+function displayCategory(item) {
+  return subCategory(item) || rootCategory(item)
+}
+
 export default function Customer() {
   const configured = supabaseConfigured()
   const [items, setItems] = useState([])
@@ -69,7 +90,7 @@ export default function Customer() {
     const [directResult, rpcResult] = await Promise.all([
       supabase
         .from('menu')
-        .select('item_id,name,description,price,category,availability_status')
+        .select('item_id,name,size_label,description,price,category,availability_status')
         .order('category')
         .order('name'),
       supabase.rpc('get_menu_public'),
@@ -136,17 +157,104 @@ export default function Customer() {
     }
   }, [configured, loadMenu])
 
-  const categories = useMemo(() => {
-    const fromDb = [...new Set(items.map((i) => i.category).filter(Boolean))].sort()
+  const rootCategories = useMemo(() => {
+    const fromDb = [...new Set(items.map((item) => rootCategory(item)))].sort()
     return ['All', ...fromDb]
   }, [items])
 
-  const [activeCategory, setActiveCategory] = useState('All')
+  const [activeRoot, setActiveRoot] = useState('All')
+  const [activeSubCategory, setActiveSubCategory] = useState('')
+  const [activeDrinkName, setActiveDrinkName] = useState('')
+  const [activeSize, setActiveSize] = useState('')
+
+  const subCategories = useMemo(() => {
+    if (activeRoot === 'All') return []
+
+    return [
+      ...new Set(
+        items
+          .filter((item) => rootCategory(item) === activeRoot)
+          .map((item) => subCategory(item))
+          .filter(Boolean),
+      ),
+    ].sort()
+  }, [activeRoot, items])
+
+  const drinkNames = useMemo(() => {
+    if (activeRoot === 'All') return []
+
+    return [
+      ...new Set(
+        items
+          .filter((item) => rootCategory(item) === activeRoot)
+          .filter((item) => !activeSubCategory || subCategory(item) === activeSubCategory)
+          .map((item) => item.name)
+          .filter(Boolean),
+      ),
+    ].sort()
+  }, [activeRoot, activeSubCategory, items])
+
+  const sizes = useMemo(() => {
+    if (!activeDrinkName) return []
+
+    return [
+      ...new Set(
+        items
+          .filter((item) => rootCategory(item) === activeRoot)
+          .filter((item) => !activeSubCategory || subCategory(item) === activeSubCategory)
+          .filter((item) => item.name === activeDrinkName)
+          .map((item) => item.sizeLabel)
+          .filter(Boolean),
+      ),
+    ].sort((a, b) => Number.parseFloat(a) - Number.parseFloat(b) || a.localeCompare(b))
+  }, [activeDrinkName, activeRoot, activeSubCategory, items])
 
   const visibleItems = useMemo(() => {
-    if (activeCategory === 'All') return items
-    return items.filter((item) => item.category === activeCategory)
-  }, [activeCategory, items])
+    if (activeRoot !== 'All' && subCategories.length > 0 && !activeSubCategory) return []
+    if (activeRoot !== 'All' && !activeDrinkName) return []
+
+    return items.filter((item) => {
+      if (activeRoot !== 'All' && rootCategory(item) !== activeRoot) return false
+      if (activeSubCategory && subCategory(item) !== activeSubCategory) return false
+      if (activeDrinkName && item.name !== activeDrinkName) return false
+      if (activeSize && item.sizeLabel !== activeSize) return false
+      return true
+    })
+  }, [activeDrinkName, activeRoot, activeSize, activeSubCategory, items, subCategories.length])
+
+  const selectionPrompt = useMemo(() => {
+    if (activeRoot === 'All') return ''
+    if (subCategories.length > 0 && !activeSubCategory) return `Choose a ${activeRoot} type.`
+    if (!activeDrinkName) return 'Choose an item.'
+    if (sizes.length > 1 && !activeSize) return 'Choose a size or view all sizes.'
+    return ''
+  }, [activeDrinkName, activeRoot, activeSize, activeSubCategory, sizes.length, subCategories.length])
+
+  function chooseRoot(category) {
+    setActiveRoot(category)
+    setActiveSubCategory('')
+    setActiveDrinkName('')
+    setActiveSize('')
+    setExpandedItemId(null)
+  }
+
+  function chooseSubCategory(category) {
+    setActiveSubCategory(category)
+    setActiveDrinkName('')
+    setActiveSize('')
+    setExpandedItemId(null)
+  }
+
+  function chooseDrinkName(name) {
+    setActiveDrinkName(name)
+    setActiveSize('')
+    setExpandedItemId(null)
+  }
+
+  function chooseSize(size) {
+    setActiveSize(size)
+    setExpandedItemId(null)
+  }
 
   function toggleDetails(itemId) {
     setExpandedItemId((currentId) => (currentId === itemId ? null : itemId))
@@ -187,26 +295,112 @@ export default function Customer() {
             </p>
           )}
 
-          <div className="mx-auto mb-12 flex max-w-4xl flex-wrap justify-center gap-x-8 gap-y-5">
-            {categories.map((cat) => {
-              const isActive = activeCategory === cat
+          <div className="mx-auto mb-12 max-w-4xl space-y-5">
+            <div className="flex flex-wrap justify-center gap-x-8 gap-y-5">
+              {rootCategories.map((cat) => {
+                const isActive = activeRoot === cat
 
-              return (
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => chooseRoot(cat)}
+                    className={[
+                      'rounded-full border px-7 py-3 text-sm font-semibold transition-colors',
+                      isActive
+                        ? 'border-transparent bg-[#3B2F2A] text-white'
+                        : 'border-black/50 bg-white text-[#3B2F2A] hover:bg-black/5',
+                    ].join(' ')}
+                  >
+                    {cat}
+                  </button>
+                )
+              })}
+            </div>
+
+            {subCategories.length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-3">
+                {subCategories.map((cat) => {
+                  const isActive = activeSubCategory === cat
+
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => chooseSubCategory(cat)}
+                      className={[
+                        'rounded-full border px-5 py-2 text-xs font-bold transition-colors',
+                        isActive
+                          ? 'border-[#D98C5F] bg-[#D98C5F] text-white'
+                          : 'border-[#D98C5F]/60 bg-white text-[#3B2F2A] hover:bg-[#D98C5F]/10',
+                      ].join(' ')}
+                    >
+                      {cat}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
+
+            {drinkNames.length > 0 && (activeSubCategory || subCategories.length === 0) ? (
+              <div className="flex flex-wrap justify-center gap-3">
+                {drinkNames.map((name) => {
+                  const isActive = activeDrinkName === name
+
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => chooseDrinkName(name)}
+                      className={[
+                        'rounded-full border px-4 py-2 text-xs font-semibold transition-colors',
+                        isActive
+                          ? 'border-transparent bg-[#3B2F2A] text-white'
+                          : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
+                      ].join(' ')}
+                    >
+                      {name}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
+
+            {sizes.length > 1 ? (
+              <div className="flex flex-wrap justify-center gap-3">
                 <button
-                  key={cat}
                   type="button"
-                  onClick={() => setActiveCategory(cat)}
+                  onClick={() => chooseSize('')}
                   className={[
-                    'rounded-full border px-7 py-3 text-sm font-semibold transition-colors',
-                    isActive
+                    'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
+                    activeSize === ''
                       ? 'border-transparent bg-[#3B2F2A] text-white'
-                      : 'border-black/50 bg-white text-[#3B2F2A] hover:bg-black/5',
+                      : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
                   ].join(' ')}
                 >
-                  {cat}
+                  All sizes
                 </button>
-              )
-            })}
+                {sizes.map((size) => {
+                  const isActive = activeSize === size
+
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => chooseSize(size)}
+                      className={[
+                        'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
+                        isActive
+                          ? 'border-transparent bg-[#3B2F2A] text-white'
+                          : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
+                      ].join(' ')}
+                    >
+                      {size}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
@@ -233,10 +427,16 @@ export default function Customer() {
 
                       {item.category ? (
                         <span className="shrink-0 rounded-full bg-[#F7F0E6] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#3B2F2A]/70">
-                          {item.category}
+                          {displayCategory(item)}
                         </span>
                       ) : null}
                     </div>
+
+                    {item.sizeLabel ? (
+                      <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[#3B2F2A]/55">
+                        {item.sizeLabel}
+                      </p>
+                    ) : null}
 
                     <p className="mt-2 text-lg font-extrabold text-[#D98C5F]">
                       {Number.isFinite(item.price) ? `₱${item.price.toFixed(2)}` : '₱—'}
@@ -285,8 +485,14 @@ export default function Customer() {
             })}
           </div>
 
-          {!loading && !fetchError && configured && visibleItems.length === 0 && (
-            <p className="mt-10 text-center text-sm text-black/50">No items found in this category yet.</p>
+          {selectionPrompt ? (
+            <p className="mt-10 text-center text-sm font-semibold text-black/50">
+              {selectionPrompt}
+            </p>
+          ) : null}
+
+          {!loading && !fetchError && configured && !selectionPrompt && visibleItems.length === 0 && (
+            <p className="mt-10 text-center text-sm text-black/50">No items found yet.</p>
           )}
         </section>
       </main>
