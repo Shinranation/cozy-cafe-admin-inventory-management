@@ -33,8 +33,7 @@ function normalizeMenuRows(rows) {
     .filter(
       (r) =>
         Number.isFinite(r.id) &&
-        r.id > 0 &&
-        r.availabilityStatus.toLowerCase() === 'available',
+        r.id > 0,
     )
 }
 
@@ -608,6 +607,7 @@ export default function Customer() {
           <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
             {visibleItems.map((item) => {
               const isExpanded = expandedItemId === item.id
+              const isAvailable = item.availabilityStatus.toLowerCase() === 'available'
 
               return (
                 <article
@@ -615,6 +615,16 @@ export default function Customer() {
                   className="rounded-[28px] border-2 border-[#D98C5F] bg-white p-5"
                 >
                   <div className="aspect-[4/3] w-full overflow-hidden rounded-xl border-2 border-black/40 bg-white relative">
+                    <span
+                      className={[
+                        'absolute right-3 top-3 z-10 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wide shadow-sm',
+                        isAvailable
+                          ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                          : 'border-red-300 bg-red-100 text-red-800',
+                      ].join(' ')}
+                    >
+                      {isAvailable ? 'Available' : 'Unavailable'}
+                    </span>
                     <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
                       <div className="absolute w-full h-[1px] bg-black rotate-45" />
                       <div className="absolute w-full h-[1px] bg-black -rotate-45" />
@@ -626,12 +636,6 @@ export default function Customer() {
                       <p className="text-xl font-extrabold leading-tight text-[#3B2F2A]">
                         {item.name}
                       </p>
-
-                      {item.category ? (
-                        <span className="shrink-0 rounded-full bg-[#F7F0E6] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#3B2F2A]/70">
-                          {displayCategory(item)}
-                        </span>
-                      ) : null}
                     </div>
 
                     {item.sizeLabel ? (
@@ -658,19 +662,6 @@ export default function Customer() {
                         No description added yet.
                       </p>
                     )}
-
-                    <div className="mt-4 border-t border-[#D98C5F]/20 pt-4 text-xs text-black/55">
-                      <div className="flex justify-between gap-4">
-                        <span>Menu ID</span>
-                        <span className="font-bold text-[#3B2F2A]">{item.id}</span>
-                      </div>
-                      <div className="mt-2 flex justify-between gap-4">
-                        <span>Status</span>
-                        <span className="font-bold text-[#3B2F2A]">
-                          {item.availabilityStatus}
-                        </span>
-                      </div>
-                    </div>
 
                     {item.description.length > 120 ? (
                       <button

@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react'
+
 export default function MenuItemsSection({
   loading,
   configured,
@@ -17,6 +19,13 @@ export default function MenuItemsSection({
   busyRecipeItemId,
   handleAddRecipeIngredient,
 }) {
+  const [linkDialogItemId, setLinkDialogItemId] = useState(null)
+
+  const activeLinkItem = useMemo(() => {
+    if (!linkDialogItemId) return null
+    return menuRows.find((item) => item.item_id === linkDialogItemId) ?? null
+  }, [linkDialogItemId, menuRows])
+
   if (!loading && configured && menuRows.length === 0 && !fetchError) {
     return (
       <div className="mb-8 rounded-2xl border-2 border-dashed border-gray-300 bg-white/80 px-6 py-10 text-center text-gray-600">
@@ -191,41 +200,14 @@ export default function MenuItemsSection({
                               </ul>
                             )}
 
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                              <select
-                                value={recipeInputs[item.item_id]?.ingredient_id ?? ''}
-                                onChange={(e) => handleRecipeInputChange(item.item_id, 'ingredient_id', e.target.value)}
-                                className="min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-xs"
-                                disabled={busyRecipeItemId === item.item_id || !configured || rows.length === 0}
-                              >
-                                <option value="">Choose ingredient</option>
-                                {rows.map((ingredient) => (
-                                  <option key={ingredient.ingredient_id} value={ingredient.ingredient_id}>
-                                    {ingredient.name} ({ingredient.unit_of_measure})
-                                  </option>
-                                ))}
-                              </select>
-
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                placeholder="Qty"
-                                value={recipeInputs[item.item_id]?.quantity_required ?? ''}
-                                onChange={(e) => handleRecipeInputChange(item.item_id, 'quantity_required', e.target.value)}
-                                className="min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-xs"
-                                disabled={busyRecipeItemId === item.item_id || !configured}
-                              />
-
-                              <button
-                                type="button"
-                                onClick={() => handleAddRecipeIngredient(item)}
-                                disabled={busyRecipeItemId === item.item_id || !configured || rows.length === 0}
-                                className="w-full rounded-full bg-[#3B2F2A] px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:col-span-2"
-                              >
-                                {busyRecipeItemId === item.item_id ? 'Adding...' : 'Link'}
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setLinkDialogItemId(item.item_id)}
+                              disabled={busyRecipeItemId === item.item_id || !configured || rows.length === 0}
+                              className="w-full rounded-full bg-[#3B2F2A] px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                            >
+                              {busyRecipeItemId === item.item_id ? 'Adding...' : 'Link ingredient'}
+                            </button>
                           </div>
                         </article>
                       )
@@ -237,6 +219,74 @@ export default function MenuItemsSection({
           </section>
         ))}
       </div>
+
+      {activeLinkItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              Link ingredient
+            </p>
+            <h3 className="mt-1 break-words text-lg font-bold text-gray-900">
+              {activeLinkItem.name}
+            </h3>
+
+            <div className="mt-5 space-y-4">
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                Ingredient
+                <select
+                  value={recipeInputs[activeLinkItem.item_id]?.ingredient_id ?? ''}
+                  onChange={(e) => handleRecipeInputChange(activeLinkItem.item_id, 'ingredient_id', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal"
+                  disabled={busyRecipeItemId === activeLinkItem.item_id || !configured || rows.length === 0}
+                >
+                  <option value="">Choose ingredient</option>
+                  {rows.map((ingredient) => (
+                    <option key={ingredient.ingredient_id} value={ingredient.ingredient_id}>
+                      {ingredient.name} ({ingredient.unit_of_measure})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                Quantity Required
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="Qty"
+                  value={recipeInputs[activeLinkItem.item_id]?.quantity_required ?? ''}
+                  onChange={(e) => handleRecipeInputChange(activeLinkItem.item_id, 'quantity_required', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                  disabled={busyRecipeItemId === activeLinkItem.item_id || !configured}
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setLinkDialogItemId(null)}
+                disabled={busyRecipeItemId === activeLinkItem.item_id}
+                className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const saved = await handleAddRecipeIngredient(activeLinkItem)
+                  if (saved) setLinkDialogItemId(null)
+                }}
+                disabled={busyRecipeItemId === activeLinkItem.item_id || !configured || rows.length === 0}
+                className="rounded-full bg-[#3B2F2A] px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {busyRecipeItemId === activeLinkItem.item_id ? 'Adding...' : 'Save link'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

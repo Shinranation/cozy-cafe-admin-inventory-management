@@ -569,7 +569,7 @@ export default function InventoryDashboard() {
 
   const handleAddRecipeIngredient = useCallback(
     async (menuItem) => {
-      if (!supabase) return
+      if (!supabase) return false
 
       const input = recipeInputs[menuItem.item_id] ?? {}
       const ingredientId = Number(input.ingredient_id)
@@ -581,12 +581,12 @@ export default function InventoryDashboard() {
 
       if (!ingredient) {
         setActionError('Choose an ingredient for this menu item.')
-        return
+        return false
       }
 
       if (!Number.isFinite(quantityRequired) || quantityRequired <= 0) {
         setActionError('Enter a recipe quantity greater than zero.')
-        return
+        return false
       }
 
       setBusyRecipeItemId(menuItem.item_id)
@@ -606,7 +606,7 @@ export default function InventoryDashboard() {
 
       if (error || !inserted) {
         setActionError(error?.message ?? 'Could not add recipe ingredient.')
-        return
+        return false
       }
 
       const row = normalizeMenuIngredientRow(inserted)
@@ -619,6 +619,7 @@ export default function InventoryDashboard() {
         [menuItem.item_id]: { ingredient_id: '', quantity_required: '' },
       }))
       setActionMessage(`${ingredient.name} linked to ${menuItem.name}.`)
+      return true
     },
     [recipeInputs, rows],
   )
