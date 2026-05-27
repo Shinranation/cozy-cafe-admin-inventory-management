@@ -129,6 +129,76 @@ function buildMonthlyRows(orders, expenses, year) {
   }))
 }
 
+function isInSelectedPeriod(dateValue, year, monthName) {
+  return getYear(dateValue) === year && MONTHS[getMonthIndex(dateValue)] === monthName
+}
+
+function ingredientNameFromExpense(expense) {
+  const name = String(expense.expense_name ?? '').trim()
+  const prefix = 'Inventory stock in:'
+  if (name.toLowerCase().startsWith(prefix.toLowerCase())) {
+    return name.slice(prefix.length).trim() || 'Unknown Ingredient'
+  }
+  return name || expense.category || 'Other Cost'
+}
+
+function buildIngredientCostRows(expenses, year, monthName) {
+  const byIngredient = new Map()
+
+  for (const expense of expenses) {
+    if (!isInSelectedPeriod(expense.expense_date, year, monthName)) continue
+
+    const amount = safeNumber(expense.amount)
+    if (amount <= 0) continue
+
+    const ingredientName = ingredientNameFromExpense(expense)
+    const current = byIngredient.get(ingredientName) ?? {
+      ingredientName,
+      totalCost: 0,
+      entryCount: 0,
+    }
+
+    current.totalCost += amount
+    current.entryCount += 1
+    byIngredient.set(ingredientName, current)
+  }
+
+  return [...byIngredient.values()].sort((a, b) => b.totalCost - a.totalCost)
+}
+
+function menuItemDisplayName(item) {
+  return [item?.name, item?.size_label].filter(Boolean).join(' - ') || 'Unknown Menu Item'
+}
+
+function buildBestSellingRows(orders, year, monthName) {
+  const byMenuItem = new Map()
+
+  for (const order of orders) {
+    if (!isInSelectedPeriod(order.created_at, year, monthName)) continue
+
+    for (const item of order.items ?? []) {
+      const key = String(item.menu_item_id ?? menuItemDisplayName(item))
+      const quantity = safeNumber(item.quantity)
+      const revenue = safeNumber(item.sub_total)
+      const current = byMenuItem.get(key) ?? {
+        name: menuItemDisplayName(item),
+        quantitySold: 0,
+        totalRevenue: 0,
+        orderLineCount: 0,
+      }
+
+      current.quantitySold += quantity
+      current.totalRevenue += revenue
+      current.orderLineCount += 1
+      byMenuItem.set(key, current)
+    }
+  }
+
+  return [...byMenuItem.values()].sort(
+    (a, b) => b.quantitySold - a.quantitySold || b.totalRevenue - a.totalRevenue,
+  )
+}
+
 export default function AdminDashboardCosts() {
   const configured = supabaseConfigured()
   const currentDate = new Date()
@@ -160,7 +230,7 @@ export default function AdminDashboardCosts() {
 
     const [receivedOrdersResult, expensesResult] = await Promise.all([
       supabase.rpc('list_received_orders_with_items'),
-      supabase.from('expenses').select('expense_date,amount'),
+      supabase.from('expenses').select('expense_date,expense_name,amount,category'),
     ])
 
     if (receivedOrdersResult.error) {
@@ -270,6 +340,26 @@ export default function AdminDashboardCosts() {
 
   const currentMonthData =
     computedData.find((item) => item.month === selectedMonth) || computedData[0]
+
+  const ingredientCostRows = useMemo(
+    () => buildIngredientCostRows(expenses, year, selectedMonth),
+    [expenses, selectedMonth, year],
+  )
+
+  const bestSellingRows = useMemo(
+    () => buildBestSellingRows(orders, year, selectedMonth),
+    [orders, selectedMonth, year],
+  )
+
+  const selectedIngredientCost = useMemo(
+    () => ingredientCostRows.reduce((sum, item) => sum + item.totalCost, 0),
+    [ingredientCostRows],
+  )
+
+  const selectedBestSellerRevenue = useMemo(
+    () => bestSellingRows.reduce((sum, item) => sum + item.totalRevenue, 0),
+    [bestSellingRows],
+  )
 
   const maxRevenue = Math.max(1, ...computedData.map((item) => item.totalRevenue))
   const maxCost = Math.max(1, ...computedData.map((item) => item.totalExpenses))
@@ -521,6 +611,114 @@ export default function AdminDashboardCosts() {
                 </button>
               )
             })}
+          </div>
+        </section>
+
+        <section className="bg-white border-2 border-[#D98C5F]/40 rounded-[2.5rem] p-8 mb-8 shadow-sm">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                Receipt report
+              </p>
+              <h2 className="text-3xl font-bold text-gray-700">
+                {selectedMonth} {year}
+              </h2>
+              <p className="mt-2 text-sm text-gray-500">
+                Ingredient costs come from Inventory Stock In expenses. Best sellers come from received orders.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={fetchFinancialData}
+              disabled={!configured || loading}
+              className="rounded-full border border-[#D98C5F]/30 bg-white px-5 py-2 text-sm font-bold text-[#3B2F2A] transition hover:bg-[#FFF7F1] disabled:opacity-50"
+            >
+              Refresh Receipt
+            </button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 mb-8">
+            <div className="rounded-2xl border border-[#D98C5F]/30 bg-[#FDFBF4] p-5">
+              <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
+                Ingredient Cost Total
+              </p>
+              <p className="mt-2 text-3xl font-bold text-red-600">
+                {formatCurrency(selectedIngredientCost)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[#D98C5F]/30 bg-[#FDFBF4] p-5">
+              <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
+                Best-Seller Revenue
+              </p>
+              <p className="mt-2 text-3xl font-bold text-green-700">
+                {formatCurrency(selectedBestSellerRevenue)}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-[#D98C5F]/25 p-5">
+              <h3 className="text-xl font-bold text-gray-800">Ingredient Cost Receipt</h3>
+              <div className="mt-4 space-y-3">
+                {ingredientCostRows.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                    No ingredient costs recorded for this month.
+                  </p>
+                ) : (
+                  ingredientCostRows.map((item, index) => (
+                    <div
+                      key={item.ingredientName}
+                      className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                          #{index + 1} - {item.entryCount} stock-in record{item.entryCount !== 1 ? 's' : ''}
+                        </p>
+                        <p className="mt-1 break-words font-bold text-gray-800">
+                          {item.ingredientName}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-bold text-red-600">
+                        {formatCurrency(item.totalCost)}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#D98C5F]/25 p-5">
+              <h3 className="text-xl font-bold text-gray-800">Best Selling Menu</h3>
+              <div className="mt-4 space-y-3">
+                {bestSellingRows.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                    No received orders recorded for this month.
+                  </p>
+                ) : (
+                  bestSellingRows.map((item, index) => (
+                    <div
+                      key={`${item.name}-${index}`}
+                      className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                          #{index + 1} - {item.orderLineCount} order line{item.orderLineCount !== 1 ? 's' : ''}
+                        </p>
+                        <p className="mt-1 break-words font-bold text-gray-800">
+                          {item.name}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-gray-500">
+                          Sold: {item.quantitySold}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-bold text-green-700">
+                        {formatCurrency(item.totalRevenue)}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </section>
 

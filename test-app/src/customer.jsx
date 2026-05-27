@@ -76,6 +76,35 @@ function displayCategory(item) {
   return subCategory(item) || rootCategory(item)
 }
 
+function formatPrice(price) {
+  return Number.isFinite(price) ? `PHP ${price.toFixed(2)}` : 'PHP --'
+}
+
+function firstMenuItem(rows) {
+  return [...rows].sort((a, b) => a.id - b.id)[0] ?? null
+}
+
+function MenuPreviewVisual({ label, active = false }) {
+  return (
+    <span
+      className={[
+        'relative block aspect-[4/3] w-full overflow-hidden rounded-xl border bg-white',
+        active ? 'border-white/25 bg-white/10' : 'border-[#D98C5F]/30',
+      ].join(' ')}
+    >
+      <span className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
+        <span className="absolute h-[1px] w-full rotate-45 bg-current" />
+        <span className="absolute h-[1px] w-full -rotate-45 bg-current" />
+      </span>
+      <span className="absolute inset-x-3 bottom-3 rounded-lg bg-white/85 px-3 py-2 text-center shadow-sm">
+        <span className="block truncate text-xs font-extrabold uppercase tracking-wide text-[#3B2F2A]">
+          {label}
+        </span>
+      </span>
+    </span>
+  )
+}
+
 export default function Customer() {
   const configured = supabaseConfigured()
   const [items, setItems] = useState([])
@@ -157,9 +186,22 @@ export default function Customer() {
     }
   }, [configured, loadMenu])
 
-  const rootCategories = useMemo(() => {
-    const fromDb = [...new Set(items.map((item) => rootCategory(item)))].sort()
-    return ['All', ...fromDb]
+  const rootCategoryOptions = useMemo(() => {
+    const groups = new Map()
+
+    for (const item of items) {
+      const name = rootCategory(item)
+      const existing = groups.get(name) ?? []
+      groups.set(name, [...existing, item])
+    }
+
+    return [...groups.entries()]
+      .map(([name, rows]) => ({
+        name,
+        count: rows.length,
+        sample: firstMenuItem(rows),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [items])
 
   const [activeRoot, setActiveRoot] = useState('All')
@@ -167,32 +209,59 @@ export default function Customer() {
   const [activeDrinkName, setActiveDrinkName] = useState('')
   const [activeSize, setActiveSize] = useState('')
 
-  const subCategories = useMemo(() => {
+  const subCategoryOptions = useMemo(() => {
     if (activeRoot === 'All') return []
 
-    return [
-      ...new Set(
-        items
-          .filter((item) => rootCategory(item) === activeRoot)
-          .map((item) => subCategory(item))
-          .filter(Boolean),
-      ),
-    ].sort()
+    const groups = new Map()
+
+    for (const item of items) {
+      if (rootCategory(item) !== activeRoot) continue
+      const name = subCategory(item)
+      if (!name) continue
+      const existing = groups.get(name) ?? []
+      groups.set(name, [...existing, item])
+    }
+
+    return [...groups.entries()]
+      .map(([name, rows]) => ({
+        name,
+        count: rows.length,
+        sample: firstMenuItem(rows),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [activeRoot, items])
 
-  const drinkNames = useMemo(() => {
+  const subCategories = useMemo(
+    () => subCategoryOptions.map((option) => option.name),
+    [subCategoryOptions],
+  )
+
+  const drinkOptions = useMemo(() => {
     if (activeRoot === 'All') return []
 
-    return [
-      ...new Set(
-        items
-          .filter((item) => rootCategory(item) === activeRoot)
-          .filter((item) => !activeSubCategory || subCategory(item) === activeSubCategory)
-          .map((item) => item.name)
-          .filter(Boolean),
-      ),
-    ].sort()
+    const groups = new Map()
+
+    for (const item of items) {
+      if (rootCategory(item) !== activeRoot) continue
+      if (activeSubCategory && subCategory(item) !== activeSubCategory) continue
+      if (!item.name) continue
+      const existing = groups.get(item.name) ?? []
+      groups.set(item.name, [...existing, item])
+    }
+
+    return [...groups.entries()]
+      .map(([name, rows]) => ({
+        name,
+        count: rows.length,
+        sample: firstMenuItem(rows),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [activeRoot, activeSubCategory, items])
+
+  const drinkNames = useMemo(
+    () => drinkOptions.map((option) => option.name),
+    [drinkOptions],
+  )
 
   const sizes = useMemo(() => {
     if (!activeDrinkName) return []
@@ -210,6 +279,7 @@ export default function Customer() {
   }, [activeDrinkName, activeRoot, activeSubCategory, items])
 
   const visibleItems = useMemo(() => {
+    if (activeRoot === 'All') return []
     if (activeRoot !== 'All' && subCategories.length > 0 && !activeSubCategory) return []
     if (activeRoot !== 'All' && !activeDrinkName) return []
 
@@ -223,7 +293,7 @@ export default function Customer() {
   }, [activeDrinkName, activeRoot, activeSize, activeSubCategory, items, subCategories.length])
 
   const selectionPrompt = useMemo(() => {
-    if (activeRoot === 'All') return ''
+    if (activeRoot === 'All') return 'Choose a menu category.'
     if (subCategories.length > 0 && !activeSubCategory) return `Choose a ${activeRoot} type.`
     if (!activeDrinkName) return 'Choose an item.'
     if (sizes.length > 1 && !activeSize) return 'Choose a size or view all sizes.'
@@ -238,8 +308,19 @@ export default function Customer() {
     setExpandedItemId(null)
   }
 
+  function goBackToParents() {
+    chooseRoot('All')
+  }
+
   function chooseSubCategory(category) {
     setActiveSubCategory(category)
+    setActiveDrinkName('')
+    setActiveSize('')
+    setExpandedItemId(null)
+  }
+
+  function goBackToSubCategories() {
+    setActiveSubCategory('')
     setActiveDrinkName('')
     setActiveSize('')
     setExpandedItemId(null)
@@ -296,32 +377,59 @@ export default function Customer() {
           )}
 
           <div className="mx-auto mb-12 max-w-4xl space-y-5">
-            <div className="flex flex-wrap justify-center gap-x-8 gap-y-5">
-              {rootCategories.map((cat) => {
-                const isActive = activeRoot === cat
+            {activeRoot === 'All' ? (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                {rootCategoryOptions.map((option) => {
+                  const sample = option.sample
 
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => chooseRoot(cat)}
-                    className={[
-                      'rounded-full border px-7 py-3 text-sm font-semibold transition-colors',
-                      isActive
-                        ? 'border-transparent bg-[#3B2F2A] text-white'
-                        : 'border-black/50 bg-white text-[#3B2F2A] hover:bg-black/5',
-                    ].join(' ')}
-                  >
-                    {cat}
-                  </button>
-                )
-              })}
-            </div>
+                  return (
+                    <button
+                      key={option.name}
+                      type="button"
+                      onClick={() => chooseRoot(option.name)}
+                      className="rounded-[28px] border border-[#D98C5F]/35 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60"
+                    >
+                      <MenuPreviewVisual label={sample?.name || option.name} />
+                      <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                        Category
+                      </span>
+                      <span className="mt-1 block break-words text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                        {option.name}
+                      </span>
+                      <span className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#D98C5F]/20 bg-[#F7F0E6]/70 px-3 py-2 text-xs font-bold text-[#3B2F2A]/65">
+                        <span>{option.count} item{option.count !== 1 ? 's' : ''}</span>
+                        {sample ? <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span> : null}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                    Selected category
+                  </p>
+                  <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                    {activeRoot}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={goBackToParents}
+                  className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                >
+                  Back
+                </button>
+              </div>
+            )}
 
-            {subCategories.length > 0 ? (
-              <div className="flex flex-wrap justify-center gap-3">
-                {subCategories.map((cat) => {
+            {subCategoryOptions.length > 0 && !activeSubCategory ? (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {subCategoryOptions.map((option) => {
+                  const cat = option.name
                   const isActive = activeSubCategory === cat
+                  const sample = option.sample
 
                   return (
                     <button
@@ -329,23 +437,62 @@ export default function Customer() {
                       type="button"
                       onClick={() => chooseSubCategory(cat)}
                       className={[
-                        'rounded-full border px-5 py-2 text-xs font-bold transition-colors',
+                        'rounded-[28px] border p-4 text-left shadow-sm transition hover:-translate-y-0.5',
                         isActive
-                          ? 'border-[#D98C5F] bg-[#D98C5F] text-white'
-                          : 'border-[#D98C5F]/60 bg-white text-[#3B2F2A] hover:bg-[#D98C5F]/10',
+                          ? 'border-[#D98C5F] bg-[#FFF7F1] ring-2 ring-[#D98C5F]/25'
+                          : 'border-[#D98C5F]/35 bg-white hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60',
                       ].join(' ')}
                     >
-                      {cat}
+                      <MenuPreviewVisual label={sample?.name || cat} active={isActive} />
+                      <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                        {activeRoot}
+                      </span>
+                      <span className="mt-1 block break-words text-lg font-extrabold leading-tight text-[#3B2F2A]">
+                        {cat}
+                      </span>
+                      {sample ? (
+                        <span className="mt-3 block rounded-xl border border-[#D98C5F]/20 bg-white/75 px-3 py-2">
+                          <span className="block truncate text-xs font-bold text-[#3B2F2A]">
+                            {sample.name}
+                          </span>
+                          <span className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-[#3B2F2A]/60">
+                            <span>{sample.sizeLabel || `${option.count} item${option.count !== 1 ? 's' : ''}`}</span>
+                            <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span>
+                          </span>
+                        </span>
+                      ) : null}
                     </button>
                   )
                 })}
               </div>
             ) : null}
 
-            {drinkNames.length > 0 && (activeSubCategory || subCategories.length === 0) ? (
-              <div className="flex flex-wrap justify-center gap-3">
-                {drinkNames.map((name) => {
+            {subCategoryOptions.length > 0 && activeSubCategory ? (
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                    Selected type
+                  </p>
+                  <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                    {activeSubCategory}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={goBackToSubCategories}
+                  className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                >
+                  Back
+                </button>
+              </div>
+            ) : null}
+
+            {drinkOptions.length > 0 && (activeSubCategory || subCategories.length === 0) ? (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {drinkOptions.map((option) => {
+                  const name = option.name
                   const isActive = activeDrinkName === name
+                  const sample = option.sample
 
                   return (
                     <button
@@ -353,13 +500,39 @@ export default function Customer() {
                       type="button"
                       onClick={() => chooseDrinkName(name)}
                       className={[
-                        'rounded-full border px-4 py-2 text-xs font-semibold transition-colors',
+                        'rounded-[28px] border p-4 text-left shadow-sm transition hover:-translate-y-0.5',
                         isActive
-                          ? 'border-transparent bg-[#3B2F2A] text-white'
-                          : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
+                          ? 'border-[#3B2F2A] bg-[#3B2F2A] text-white'
+                          : 'border-black/15 bg-white text-[#3B2F2A] hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60',
                       ].join(' ')}
                     >
-                      {name}
+                      <MenuPreviewVisual label={name} active={isActive} />
+                      <span
+                        className={[
+                          'mt-4 block text-[10px] font-black uppercase tracking-[0.18em]',
+                          isActive ? 'text-white/65' : 'text-[#D98C5F]',
+                        ].join(' ')}
+                      >
+                        {activeSubCategory || activeRoot}
+                      </span>
+                      <span className="mt-1 block break-words text-base font-extrabold leading-tight">
+                        {name}
+                      </span>
+                      {sample ? (
+                        <span
+                          className={[
+                            'mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-bold',
+                            isActive
+                              ? 'border-white/20 bg-white/10 text-white/75'
+                              : 'border-[#D98C5F]/20 bg-[#F7F0E6]/70 text-[#3B2F2A]/60',
+                          ].join(' ')}
+                        >
+                          <span>{option.count > 1 ? `${option.count} sizes` : sample.sizeLabel || 'Single item'}</span>
+                          <span className={isActive ? 'text-white' : 'text-[#D98C5F]'}>
+                            {formatPrice(sample.price)}
+                          </span>
+                        </span>
+                      ) : null}
                     </button>
                   )
                 })}
@@ -439,7 +612,7 @@ export default function Customer() {
                     ) : null}
 
                     <p className="mt-2 text-lg font-extrabold text-[#D98C5F]">
-                      {Number.isFinite(item.price) ? `₱${item.price.toFixed(2)}` : '₱—'}
+                      {formatPrice(item.price)}
                     </p>
 
                     {item.description ? (
