@@ -187,20 +187,21 @@ export default function Customer() {
   }, [configured, loadMenu])
 
   const rootCategoryOptions = useMemo(() => {
-    const groups = new Map()
+    const roots = new Set()
 
     for (const item of items) {
-      const name = rootCategory(item)
-      const existing = groups.get(name) ?? []
-      groups.set(name, [...existing, item])
+      roots.add(rootCategory(item))
     }
 
-    return [...groups.entries()]
-      .map(([name, rows]) => ({
+    return [...roots]
+      .map((name) => {
+        const rows = items.filter((item) => rootCategory(item) === name)
+        return {
         name,
         count: rows.length,
         sample: firstMenuItem(rows),
-      }))
+        }
+      })
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [items])
 
