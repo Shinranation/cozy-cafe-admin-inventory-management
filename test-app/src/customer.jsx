@@ -333,6 +333,12 @@ export default function Customer() {
     setExpandedItemId(null)
   }
 
+  function goBackToDrinkNames() {
+    setActiveDrinkName('')
+    setActiveSize('')
+    setExpandedItemId(null)
+  }
+
   function chooseSize(size) {
     setActiveSize(size)
     setExpandedItemId(null)
@@ -488,7 +494,7 @@ export default function Customer() {
               </div>
             ) : null}
 
-            {drinkOptions.length > 0 && (activeSubCategory || subCategories.length === 0) ? (
+            {drinkOptions.length > 0 && (activeSubCategory || subCategories.length === 0) && !activeDrinkName ? (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {drinkOptions.map((option) => {
                   const name = option.name
@@ -540,39 +546,61 @@ export default function Customer() {
               </div>
             ) : null}
 
-            {sizes.length > 1 ? (
-              <div className="flex flex-wrap justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => chooseSize('')}
-                  className={[
-                    'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
-                    activeSize === ''
-                      ? 'border-transparent bg-[#3B2F2A] text-white'
-                      : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
-                  ].join(' ')}
-                >
-                  All sizes
-                </button>
-                {sizes.map((size) => {
-                  const isActive = activeSize === size
+            {activeDrinkName ? (
+              <div className="rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                      Selected item
+                    </p>
+                    <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                      {activeDrinkName}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={goBackToDrinkNames}
+                    className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                  >
+                    Back
+                  </button>
+                </div>
 
-                  return (
+                {sizes.length > 1 ? (
+                  <div className="mt-4 flex flex-wrap gap-3">
                     <button
-                      key={size}
                       type="button"
-                      onClick={() => chooseSize(size)}
+                      onClick={() => chooseSize('')}
                       className={[
                         'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
-                        isActive
+                        activeSize === ''
                           ? 'border-transparent bg-[#3B2F2A] text-white'
                           : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
                       ].join(' ')}
                     >
-                      {size}
+                      All sizes
                     </button>
-                  )
-                })}
+                    {sizes.map((size) => {
+                      const isActive = activeSize === size
+
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => chooseSize(size)}
+                          className={[
+                            'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
+                            isActive
+                              ? 'border-transparent bg-[#3B2F2A] text-white'
+                              : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
+                          ].join(' ')}
+                        >
+                          {size}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
