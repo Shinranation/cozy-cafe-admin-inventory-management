@@ -7,13 +7,65 @@ function menuItemLabel(item) {
   return item.size_label ? `${item.name} (${item.size_label})` : item.name
 }
 
+function splitCategory(category) {
+  return String(category || '')
+    .split('/')
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function rootCategory(item) {
+  return splitCategory(item.category)[0] || 'Other'
+}
+
+function subCategory(item) {
+  const parts = splitCategory(item.category)
+  return parts.length > 1 ? parts.slice(1).join(' / ') : ''
+}
+
+function firstMenuItem(rows) {
+  return [...rows].sort((a, b) => a.item_id - b.item_id)[0] ?? null
+}
+
+function formatPrice(price) {
+  return Number.isFinite(price) ? `PHP ${price.toFixed(2)}` : 'PHP --'
+}
+
+function sortSizeLabels(a, b) {
+  return Number.parseFloat(a) - Number.parseFloat(b) || a.localeCompare(b)
+}
+
+function MenuPreviewVisual({ label, active = false }) {
+  return (
+    <span
+      className={[
+        'relative block aspect-[4/3] w-full overflow-hidden rounded-xl border bg-white',
+        active ? 'border-white/25 bg-white/10' : 'border-[#D98C5F]/30',
+      ].join(' ')}
+    >
+      <span className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
+        <span className="absolute h-[1px] w-full rotate-45 bg-current" />
+        <span className="absolute h-[1px] w-full -rotate-45 bg-current" />
+      </span>
+      <span className="absolute inset-x-3 bottom-3 rounded-lg bg-white/85 px-3 py-2 text-center shadow-sm">
+        <span className="block truncate text-xs font-extrabold uppercase tracking-wide text-[#3B2F2A]">
+          {label}
+        </span>
+      </span>
+    </span>
+  )
+}
+
 export default function NewOrder({ onBack, onCancel }) {
   const configured = supabaseConfigured()
   const [items, setItems] = useState(/** @type {MenuItemRow[]} */ ([]))
   const [menuLoading, setMenuLoading] = useState(configured)
   const [menuError, setMenuError] = useState(/** @type {string | null} */ (null))
 
-  const [activeCategory, setActiveCategory] = useState('All')
+  const [activeRoot, setActiveRoot] = useState('All')
+  const [activeSubCategory, setActiveSubCategory] = useState('')
+  const [activeMenuName, setActiveMenuName] = useState('')
+  const [activeSize, setActiveSize] = useState('')
   /** cart: menu item_id -> qty */
   const [qty, setQty] = useState(/** @type {Record<number, number>} */ ({}))
   const [stockMessage, setStockMessage] = useState(/** @type {string | null} */ (null))
@@ -68,15 +120,110 @@ export default function NewOrder({ onBack, onCancel }) {
     return () => window.clearTimeout(timeoutId)
   }, [configured, loadMenu])
 
-  const categories = useMemo(() => {
-    const fromDb = [...new Set(items.map((i) => i.category).filter(Boolean))].sort()
-    return ['All', ...fromDb]
+  const rootCategoryOptions = useMemo(() => {
+    const roots = new Set()
+
+    for (const item of items) {
+      roots.add(rootCategory(item))
+    }
+
+    return [...roots]
+      .map((name) => {
+        const rows = items.filter((item) => rootCategory(item) === name)
+        return {
+          name,
+          count: rows.length,
+          sample: firstMenuItem(rows),
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [items])
 
+  const subCategoryOptions = useMemo(() => {
+    if (activeRoot === 'All') return []
+
+    const groups = new Map()
+
+    for (const item of items) {
+      if (rootCategory(item) !== activeRoot) continue
+      const name = subCategory(item)
+      if (!name) continue
+      const existing = groups.get(name) ?? []
+      groups.set(name, [...existing, item])
+    }
+
+    return [...groups.entries()]
+      .map(([name, rows]) => ({
+        name,
+        count: rows.length,
+        sample: firstMenuItem(rows),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [activeRoot, items])
+
+  const subCategories = useMemo(
+    () => subCategoryOptions.map((option) => option.name),
+    [subCategoryOptions],
+  )
+
+  const menuNameOptions = useMemo(() => {
+    if (activeRoot === 'All') return []
+
+    const groups = new Map()
+
+    for (const item of items) {
+      if (rootCategory(item) !== activeRoot) continue
+      if (activeSubCategory && subCategory(item) !== activeSubCategory) continue
+      if (!item.name) continue
+      const existing = groups.get(item.name) ?? []
+      groups.set(item.name, [...existing, item])
+    }
+
+    return [...groups.entries()]
+      .map(([name, rows]) => ({
+        name,
+        count: rows.length,
+        sample: firstMenuItem(rows),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [activeRoot, activeSubCategory, items])
+
+  const sizes = useMemo(() => {
+    if (!activeMenuName) return []
+
+    return [
+      ...new Set(
+        items
+          .filter((item) => rootCategory(item) === activeRoot)
+          .filter((item) => !activeSubCategory || subCategory(item) === activeSubCategory)
+          .filter((item) => item.name === activeMenuName)
+          .map((item) => item.size_label)
+          .filter(Boolean),
+      ),
+    ].sort(sortSizeLabels)
+  }, [activeMenuName, activeRoot, activeSubCategory, items])
+
   const visibleItems = useMemo(() => {
-    if (activeCategory === 'All') return items
-    return items.filter((i) => i.category === activeCategory)
-  }, [activeCategory, items])
+    if (activeRoot === 'All') return []
+    if (subCategories.length > 0 && !activeSubCategory) return []
+    if (!activeMenuName) return []
+
+    return items.filter((item) => {
+      if (rootCategory(item) !== activeRoot) return false
+      if (activeSubCategory && subCategory(item) !== activeSubCategory) return false
+      if (item.name !== activeMenuName) return false
+      if (activeSize && item.size_label !== activeSize) return false
+      return true
+    })
+  }, [activeMenuName, activeRoot, activeSize, activeSubCategory, items, subCategories.length])
+
+  const selectionPrompt = useMemo(() => {
+    if (activeRoot === 'All') return 'Choose a menu category.'
+    if (subCategories.length > 0 && !activeSubCategory) return `Choose a ${activeRoot} type.`
+    if (!activeMenuName) return 'Choose an item.'
+    if (sizes.length > 1 && !activeSize) return 'Choose a size or view all sizes.'
+    return ''
+  }, [activeMenuName, activeRoot, activeSize, activeSubCategory, sizes.length, subCategories.length])
 
   const orderList = useMemo(() => {
     const byId = new Map(items.map((i) => [i.item_id, i]))
@@ -159,6 +306,43 @@ export default function NewOrder({ onBack, onCancel }) {
     onBack?.()
   }
 
+  function chooseRoot(category) {
+    setActiveRoot(category)
+    setActiveSubCategory('')
+    setActiveMenuName('')
+    setActiveSize('')
+  }
+
+  function goBackToParents() {
+    chooseRoot('All')
+  }
+
+  function chooseSubCategory(category) {
+    setActiveSubCategory(category)
+    setActiveMenuName('')
+    setActiveSize('')
+  }
+
+  function goBackToSubCategories() {
+    setActiveSubCategory('')
+    setActiveMenuName('')
+    setActiveSize('')
+  }
+
+  function chooseMenuName(name) {
+    setActiveMenuName(name)
+    setActiveSize('')
+  }
+
+  function goBackToMenuNames() {
+    setActiveMenuName('')
+    setActiveSize('')
+  }
+
+  function chooseSize(size) {
+    setActiveSize(size)
+  }
+
   return (
     <main className="min-h-screen bg-[#FDFBF4] px-4 py-10 font-sans text-gray-700">
       <div className="mx-auto max-w-[90rem]">
@@ -204,27 +388,7 @@ export default function NewOrder({ onBack, onCancel }) {
           </div>
         )}
 
-        <div className="grid gap-8 xl:grid-cols-[260px_1fr_360px]">
-          <aside className="-ml-6 space-y-3">
-            {categories.map((cat) => {
-              const active = cat === activeCategory
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setActiveCategory(cat)}
-                  className={[
-                    'min-w-55 rounded-xl px-4 py-2 text-left text-sm font-bold border shadow-sm transition',
-                    active
-                      ? 'bg-[#3B2F2A] text-white border-transparent'
-                      : 'bg-[#D9C5B2]/40 text-gray-700 border-gray-400/30 hover:bg-[#D9C5B2]/55',
-                  ].join(' ')}
-                >
-                  {cat}
-                </button>
-              )
-            })}
-          </aside>
+        <div className="grid gap-8 xl:grid-cols-[1fr_360px]">
 
           <section>
             {menuLoading && (
@@ -235,6 +399,203 @@ export default function NewOrder({ onBack, onCancel }) {
             {!menuLoading && items.length === 0 && !menuError && (
               <p className="text-center text-gray-500 text-sm py-12">No menu items returned.</p>
             )}
+
+            {!menuLoading && items.length > 0 && (
+              <div className="mb-8 space-y-5">
+                {activeRoot === 'All' ? (
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {rootCategoryOptions.map((option) => {
+                      const sample = option.sample
+
+                      return (
+                        <button
+                          key={option.name}
+                          type="button"
+                          onClick={() => chooseRoot(option.name)}
+                          className="rounded-[28px] border border-[#D98C5F]/35 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60"
+                        >
+                          <MenuPreviewVisual label={sample?.name || option.name} />
+                          <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                            Category
+                          </span>
+                          <span className="mt-1 block break-words text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                            {option.name}
+                          </span>
+                          <span className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#D98C5F]/20 bg-[#F7F0E6]/70 px-3 py-2 text-xs font-bold text-[#3B2F2A]/65">
+                            <span>{option.count} item{option.count !== 1 ? 's' : ''}</span>
+                            {sample ? <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span> : null}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                        Selected category
+                      </p>
+                      <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                        {activeRoot}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={goBackToParents}
+                      className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                    >
+                      Back
+                    </button>
+                  </div>
+                )}
+
+                {subCategoryOptions.length > 0 && !activeSubCategory ? (
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {subCategoryOptions.map((option) => {
+                      const sample = option.sample
+
+                      return (
+                        <button
+                          key={option.name}
+                          type="button"
+                          onClick={() => chooseSubCategory(option.name)}
+                          className="rounded-[28px] border border-[#D98C5F]/35 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60"
+                        >
+                          <MenuPreviewVisual label={sample?.name || option.name} />
+                          <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                            {activeRoot}
+                          </span>
+                          <span className="mt-1 block break-words text-lg font-extrabold leading-tight text-[#3B2F2A]">
+                            {option.name}
+                          </span>
+                          {sample ? (
+                            <span className="mt-3 block rounded-xl border border-[#D98C5F]/20 bg-white/75 px-3 py-2">
+                              <span className="block truncate text-xs font-bold text-[#3B2F2A]">
+                                {sample.name}
+                              </span>
+                              <span className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-[#3B2F2A]/60">
+                                <span>{sample.size_label || `${option.count} item${option.count !== 1 ? 's' : ''}`}</span>
+                                <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span>
+                              </span>
+                            </span>
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
+
+                {subCategoryOptions.length > 0 && activeSubCategory ? (
+                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                        Selected type
+                      </p>
+                      <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                        {activeSubCategory}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={goBackToSubCategories}
+                      className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                    >
+                      Back
+                    </button>
+                  </div>
+                ) : null}
+
+                {menuNameOptions.length > 0 && (activeSubCategory || subCategories.length === 0) && !activeMenuName ? (
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {menuNameOptions.map((option) => {
+                      const sample = option.sample
+
+                      return (
+                        <button
+                          key={option.name}
+                          type="button"
+                          onClick={() => chooseMenuName(option.name)}
+                          className="rounded-[28px] border border-black/15 bg-white p-4 text-left text-[#3B2F2A] shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60"
+                        >
+                          <MenuPreviewVisual label={option.name} />
+                          <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                            {activeSubCategory || activeRoot}
+                          </span>
+                          <span className="mt-1 block break-words text-base font-extrabold leading-tight">
+                            {option.name}
+                          </span>
+                          {sample ? (
+                            <span className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#D98C5F]/20 bg-[#F7F0E6]/70 px-3 py-2 text-xs font-bold text-[#3B2F2A]/60">
+                              <span>{option.count > 1 ? `${option.count} sizes` : sample.size_label || 'Single item'}</span>
+                              <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span>
+                            </span>
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
+
+                {activeMenuName ? (
+                  <div className="rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                          Selected item
+                        </p>
+                        <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                          {activeMenuName}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={goBackToMenuNames}
+                        className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                      >
+                        Back
+                      </button>
+                    </div>
+
+                    {sizes.length > 1 ? (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => chooseSize('')}
+                          className={[
+                            'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
+                            activeSize === ''
+                              ? 'border-transparent bg-[#3B2F2A] text-white'
+                              : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
+                          ].join(' ')}
+                        >
+                          All sizes
+                        </button>
+                        {sizes.map((size) => {
+                          const isActive = activeSize === size
+
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => chooseSize(size)}
+                              className={[
+                                'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
+                                isActive
+                                  ? 'border-transparent bg-[#3B2F2A] text-white'
+                                  : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
+                              ].join(' ')}
+                            >
+                              {size}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
               {visibleItems.map((item) => {
                 const count = qty[item.item_id] ?? 0
@@ -287,6 +648,16 @@ export default function NewOrder({ onBack, onCancel }) {
                 )
               })}
             </div>
+
+            {selectionPrompt ? (
+              <p className="mt-10 text-center text-sm font-semibold text-gray-500">
+                {selectionPrompt}
+              </p>
+            ) : null}
+
+            {!menuLoading && !menuError && configured && !selectionPrompt && visibleItems.length === 0 && (
+              <p className="mt-10 text-center text-sm text-gray-500">No items found yet.</p>
+            )}
           </section>
 
           <aside className="xl:sticky xl:top-6 h-fit">

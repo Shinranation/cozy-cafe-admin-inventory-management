@@ -18,6 +18,7 @@ export function normalizeInventoryRow(raw) {
     current_quantity: safeNumeric(raw.current_quantity, 0),
     unit_of_measure: normalizeUnit(raw.unit_of_measure),
     low_stock: safeNumeric(raw.low_stock, 0),
+    classification: String(raw.classification ?? ''),
     is_active: raw.is_active !== false,
   }
 }
@@ -31,6 +32,7 @@ export function normalizeMenuRow(raw) {
     price: safeNumeric(raw.price, 0),
     category: String(raw.category ?? ''),
     size_label: String(raw.size_label ?? ''),
+    image_url: String(raw.image_url ?? ''),
     availability_status: String(raw.availability_status ?? ''),
   }
 }
@@ -66,6 +68,7 @@ export function mergeUpdateIntoRow(prevRow, incoming) {
     current_quantity: incoming.current_quantity ?? base.current_quantity,
     unit_of_measure: incoming.unit_of_measure ?? base.unit_of_measure,
     low_stock: incoming.low_stock ?? base.low_stock,
+    classification: incoming.classification ?? base.classification,
     is_active: incoming.is_active ?? base.is_active,
   })
 }

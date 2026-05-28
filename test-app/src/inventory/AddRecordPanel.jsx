@@ -8,6 +8,10 @@ export default function AddRecordPanel({
   handleAddIngredient,
   newMenuItem,
   handleNewMenuItemChange,
+  handleNewMenuPhotoUpload,
+  uploadingNewMenuPhoto,
+  handleRemoveNewMenuPhoto,
+  removingNewMenuPhoto,
   addingMenuItem,
   handleAddMenuItem,
   menuCategoryOptions,
@@ -58,7 +62,7 @@ export default function AddRecordPanel({
           Archived records are hidden from active inventory and menu lists. Permanent delete is available below for rows you no longer need.
         </div>
       ) : addMode === 'ingredient' ? (
-        <div className="grid gap-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr_auto]">
+        <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_0.7fr_0.7fr_0.7fr_0.7fr_auto]">
           <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
             Ingredient
             <input
@@ -66,6 +70,18 @@ export default function AddRecordPanel({
               value={newIngredient.name}
               onChange={(e) => handleNewIngredientChange('name', e.target.value)}
               placeholder="Flour"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+              disabled={addingIngredient || !configured}
+            />
+          </label>
+
+          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+            Classification
+            <input
+              type="text"
+              value={newIngredient.classification}
+              onChange={(e) => handleNewIngredientChange('classification', e.target.value)}
+              placeholder="Syrup, Dairy, Powder"
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
               disabled={addingIngredient || !configured}
             />
@@ -135,7 +151,7 @@ export default function AddRecordPanel({
           </button>
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-[1.2fr_1.5fr_0.7fr_0.7fr_1fr_0.8fr_auto]">
+        <div className="grid gap-3 md:grid-cols-[1.1fr_1.3fr_0.7fr_0.7fr_1fr_1fr_0.8fr_auto]">
           <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
             Menu Item
             <input
@@ -214,6 +230,53 @@ export default function AddRecordPanel({
           </label>
 
           <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+            Photo URL
+            <input
+              type="url"
+              value={newMenuItem.image_url}
+              onChange={(e) => handleNewMenuItemChange('image_url', e.target.value)}
+              placeholder="https://..."
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+              disabled={addingMenuItem || !configured}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (file) void handleNewMenuPhotoUpload(file)
+              }}
+              className="mt-2 w-full text-xs text-gray-500 file:mr-3 file:rounded-full file:border-0 file:bg-[#3B2F2A] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white"
+              disabled={addingMenuItem || uploadingNewMenuPhoto || !configured}
+            />
+            {uploadingNewMenuPhoto ? (
+              <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-gray-500">
+                Uploading photo...
+              </span>
+            ) : null}
+            {newMenuItem.image_url ? (
+              <span className="mt-2 block">
+                <span className="block overflow-hidden rounded-lg border border-gray-200 bg-[#FAF8F5]">
+                  <img
+                    src={newMenuItem.image_url}
+                    alt="Menu item preview"
+                    className="h-24 w-full object-cover"
+                  />
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handleRemoveNewMenuPhoto()}
+                  disabled={addingMenuItem || uploadingNewMenuPhoto || removingNewMenuPhoto || !configured}
+                  className="mt-2 w-full rounded-full border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                >
+                  {removingNewMenuPhoto ? 'Removing...' : 'Remove photo'}
+                </button>
+              </span>
+            ) : null}
+          </label>
+
+          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
             Status
             <select
               value={newMenuItem.availability_status}
@@ -229,7 +292,7 @@ export default function AddRecordPanel({
           <button
             type="button"
             onClick={handleAddMenuItem}
-            disabled={addingMenuItem || !configured}
+            disabled={addingMenuItem || uploadingNewMenuPhoto || removingNewMenuPhoto || !configured}
             className="self-end rounded-full bg-[#D98C5F] px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {addingMenuItem ? 'Adding...' : 'Add Menu'}

@@ -41,13 +41,6 @@ export default function MenuItemsSection({
 
   return (
     <section className="mb-12" aria-label="Menu item cards">
-      <h3 className="mb-4 inline-flex flex-wrap items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-sm font-bold text-gray-600">
-        Menu Items
-        <span className="font-normal normal-case text-gray-400">
-          {menuRows.length} item{menuRows.length !== 1 ? 's' : ''}
-        </span>
-      </h3>
-
       <div className="sticky top-3 z-20 mb-6 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-500">
           Catalogue
@@ -107,6 +100,17 @@ export default function MenuItemsSection({
                           key={item.item_id}
                           className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
                         >
+                          {item.image_url ? (
+                            <div className="aspect-[4/3] overflow-hidden rounded-xl border border-gray-200 bg-[#FAF8F5]">
+                              <img
+                                src={item.image_url}
+                                alt={item.name}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            </div>
+                          ) : null}
+
                           <div className="flex items-start justify-between gap-4">
                             <div className="min-w-0">
                               <p className="font-bold leading-tight text-gray-900">{item.name}</p>

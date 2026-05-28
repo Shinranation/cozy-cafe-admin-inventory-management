@@ -12,10 +12,15 @@ export default function InventoryModals({
   missingRecipeDialog,
   setMissingRecipeDialog,
   editRecordDialog,
+  setEditRecordDialog,
   activeEditIngredient,
   activeEditMenuItem,
   editRecordInputs,
   handleEditRecordInputChange,
+  handleEditMenuPhotoUpload,
+  uploadingEditMenuPhoto,
+  handleRemoveEditMenuPhoto,
+  removingEditMenuPhoto,
   editRecordBusy,
   menuCategoryOptions,
   openDeleteConfirm,
@@ -176,6 +181,18 @@ export default function InventoryModals({
                   />
                 </label>
 
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:col-span-2">
+                  Classification
+                  <input
+                    type="text"
+                    value={editRecordInputs.classification ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('classification', e.target.value)}
+                    placeholder="Syrup, Dairy, Powder"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                </label>
+
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
                   Current quantity
                   <input
@@ -249,6 +266,53 @@ export default function InventoryModals({
                     className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
                     disabled={editRecordBusy}
                   />
+                </label>
+
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Photo URL
+                  <input
+                    type="url"
+                    value={editRecordInputs.image_url ?? ''}
+                    onChange={(e) => handleEditRecordInputChange('image_url', e.target.value)}
+                    placeholder="https://..."
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                    disabled={editRecordBusy}
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      e.target.value = ''
+                      if (file) void handleEditMenuPhotoUpload(file)
+                    }}
+                    className="mt-2 w-full text-xs text-gray-500 file:mr-3 file:rounded-full file:border-0 file:bg-[#3B2F2A] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white"
+                    disabled={editRecordBusy || uploadingEditMenuPhoto}
+                  />
+                  {uploadingEditMenuPhoto ? (
+                    <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-gray-500">
+                      Uploading photo...
+                    </span>
+                  ) : null}
+                  {editRecordInputs.image_url ? (
+                    <span className="mt-2 block">
+                      <span className="block overflow-hidden rounded-lg border border-gray-200 bg-[#FAF8F5]">
+                        <img
+                          src={editRecordInputs.image_url}
+                          alt="Menu item preview"
+                          className="h-28 w-full object-cover"
+                        />
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveEditMenuPhoto()}
+                        disabled={editRecordBusy || uploadingEditMenuPhoto || removingEditMenuPhoto}
+                        className="mt-2 w-full rounded-full border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {removingEditMenuPhoto ? 'Removing...' : 'Remove photo from matching sizes'}
+                      </button>
+                    </span>
+                  ) : null}
                 </label>
 
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:col-span-2">
@@ -337,7 +401,7 @@ export default function InventoryModals({
                 <button
                   type="button"
                   onClick={() => void handleSaveEditedRecord()}
-                  disabled={editRecordBusy || !configured}
+                  disabled={editRecordBusy || uploadingEditMenuPhoto || removingEditMenuPhoto || !configured}
                   className="rounded-full bg-[#3B2F2A] px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50"
                 >
                   {editRecordBusy ? 'Saving...' : 'Save'}

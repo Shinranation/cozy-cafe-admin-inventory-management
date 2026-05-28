@@ -20,13 +20,14 @@ import {
 } from './inventory/inventoryUtils.js'
 import { useInventoryDashboardData } from './inventory/useInventoryDashboardData.js'
 
-/** @typedef {{ ingredient_id: number, name: string, current_quantity: number, unit_of_measure: string, low_stock: number, is_active: boolean }} InventoryRow */
-/** @typedef {{ item_id: number, name: string, description: string, price: number, category: string, size_label: string, availability_status: string }} MenuRow */
+/** @typedef {{ ingredient_id: number, name: string, classification: string, current_quantity: number, unit_of_measure: string, low_stock: number, is_active: boolean }} InventoryRow */
+/** @typedef {{ item_id: number, name: string, description: string, price: number, category: string, size_label: string, image_url: string, availability_status: string }} MenuRow */
 /** @typedef {{ menu_ingredient_id: number, menu_item_id: number, ingredient_id: number, quantity_required: number, unit_of_measure: string }} MenuIngredientRow */
 /** @typedef {{ category_id: number, name: string, parent_category_id: number | null, is_active: boolean }} MenuCategoryRow */
 
 const emptyNewIngredient = {
   name: '',
+  classification: '',
   current_quantity: '',
   unit_of_measure: '',
   low_stock: '',
@@ -35,6 +36,7 @@ const emptyNewIngredient = {
 
 const TX_REFERENCE_ID = safeIntegerEnv(import.meta.env.VITE_TX_REFERENCE_ID, 1)
 const TX_CASHIER_ID = safeIntegerEnv(import.meta.env.VITE_TX_CASHIER_ID, 1)
+const MENU_PHOTOS_BUCKET = 'menu-photos'
 
 const MENU_CATEGORIES = [
   'Rice Bowl Chicken Wings',
@@ -53,7 +55,28 @@ const emptyNewMenuItem = {
   price: '',
   category: MENU_CATEGORIES[0],
   size_label: '',
+  image_url: '',
   availability_status: 'available',
+}
+
+function sanitizeFileName(name) {
+  return String(name || 'menu-photo')
+    .toLowerCase()
+    .replace(/\.[^.]+$/, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'menu-photo'
+}
+
+function storagePathFromMenuPhotoUrl(url) {
+  try {
+    const parsed = new URL(url)
+    const marker = `/storage/v1/object/public/${MENU_PHOTOS_BUCKET}/`
+    const markerIndex = parsed.pathname.indexOf(marker)
+    if (markerIndex === -1) return ''
+    return decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length))
+  } catch {
+    return ''
+  }
 }
 
 export default function InventoryDashboard() {
@@ -98,6 +121,12 @@ export default function InventoryDashboard() {
   )
   const [addingIngredient, setAddingIngredient] = useState(false)
   const [addingMenuItem, setAddingMenuItem] = useState(false)
+  const [menuPhotoUploadTarget, setMenuPhotoUploadTarget] = useState(
+    /** @type {'new' | 'edit' | null} */ (null),
+  )
+  const [menuPhotoRemoveTarget, setMenuPhotoRemoveTarget] = useState(
+    /** @type {'new' | 'edit' | null} */ (null),
+  )
   const [busyRecipeItemId, setBusyRecipeItemId] = useState(/** @type {number | null} */ (null))
   const [busyRecipeRowId, setBusyRecipeRowId] = useState(/** @type {number | null} */ (null))
   const [busyAvailabilityItemId, setBusyAvailabilityItemId] = useState(/** @type {number | null} */ (null))
@@ -196,6 +225,193 @@ export default function InventoryDashboard() {
     setEditRecordInputs((prev) => ({ ...prev, [field]: value }))
   }, [])
 
+  const uploadMenuPhoto = useCallback(async (file) => {
+    if (!supabase || !file) return ''
+
+    if (!file.type.startsWith('image/')) {
+      throw new Error('Choose an image file.')
+    }
+
+    const maxBytes = 10 * 1024 * 1024
+    if (file.size > maxBytes) {
+      throw new Error('Menu photos must be 10 MB or smaller.')
+    }
+
+    const extension = file.name.includes('.') ? file.name.split('.').pop() : 'jpg'
+    const path = `menu-items/${Date.now()}-${sanitizeFileName(file.name)}.${extension}`
+    const { error } = await supabase.storage
+      .from(MENU_PHOTOS_BUCKET)
+      .upload(path, file, {
+        cacheControl: '3600',
+        contentType: file.type,
+        upsert: false,
+      })
+
+    if (error) {
+      throw new Error(`${error.message}. Make sure the menu-photos storage SQL has been run.`)
+    }
+
+    const { data } = supabase.storage.from(MENU_PHOTOS_BUCKET).getPublicUrl(path)
+    return data.publicUrl
+  }, [])
+
+  const handleNewMenuPhotoUpload = useCallback(async (file) => {
+    if (!file) return
+    setActionError(null)
+    setActionMessage(null)
+    setMenuPhotoUploadTarget('new')
+    try {
+      const publicUrl = await uploadMenuPhoto(file)
+      setNewMenuItem((prev) => ({ ...prev, image_url: publicUrl }))
+      setActionMessage('Menu photo uploaded. Add or save the menu item to keep it.')
+    } catch (err) {
+      setActionError(err?.message ?? 'Could not upload menu photo.')
+    } finally {
+      setMenuPhotoUploadTarget(null)
+    }
+  }, [uploadMenuPhoto])
+
+  const handleEditMenuPhotoUpload = useCallback(async (file) => {
+    if (!file) return
+    setActionError(null)
+    setActionMessage(null)
+    setMenuPhotoUploadTarget('edit')
+    try {
+      const publicUrl = await uploadMenuPhoto(file)
+      setEditRecordInputs((prev) => ({ ...prev, image_url: publicUrl }))
+      setActionMessage('Menu photo uploaded. Save the menu item to keep it.')
+    } catch (err) {
+      setActionError(err?.message ?? 'Could not upload menu photo.')
+    } finally {
+      setMenuPhotoUploadTarget(null)
+    }
+  }, [uploadMenuPhoto])
+
+  const applyMenuPhotoToMatchingSizes = useCallback(async ({ name, category, imageUrl }) => {
+    if (!supabase || !name || !category || !imageUrl) return []
+
+    const { data, error } = await supabase
+      .from('menu')
+      .update({ image_url: imageUrl })
+      .eq('name', name)
+      .eq('category', category)
+      .select('*')
+
+    if (error) {
+      throw error
+    }
+
+    const updatedRows = (data ?? []).map(normalizeMenuRow)
+
+    setMenuRows((prev) =>
+      sortMenuById(
+        prev.map((item) => {
+          const updated = updatedRows.find((row) => row.item_id === item.item_id)
+          return updated?.availability_status.toLowerCase() !== 'unavailable' ? updated ?? item : item
+        }),
+      ),
+    )
+    setArchivedMenuRows((prev) =>
+      sortMenuById(
+        prev.map((item) => {
+          const updated = updatedRows.find((row) => row.item_id === item.item_id)
+          return updated?.availability_status.toLowerCase() === 'unavailable' ? updated ?? item : item
+        }),
+      ),
+    )
+
+    return updatedRows
+  }, [])
+
+  const removeStoredMenuPhoto = useCallback(async (imageUrl) => {
+    if (!supabase || !imageUrl) return
+    const storagePath = storagePathFromMenuPhotoUrl(imageUrl)
+    if (!storagePath) return
+
+    const { error } = await supabase.storage
+      .from(MENU_PHOTOS_BUCKET)
+      .remove([storagePath])
+
+    if (error) {
+      throw error
+    }
+  }, [])
+
+  const clearMenuPhotoFromMatchingSizes = useCallback(async ({ name, category, imageUrl }) => {
+    if (!supabase || !name || !category) return []
+
+    await removeStoredMenuPhoto(imageUrl)
+
+    const { data, error } = await supabase
+      .from('menu')
+      .update({ image_url: null })
+      .eq('name', name)
+      .eq('category', category)
+      .select('*')
+
+    if (error) {
+      throw error
+    }
+
+    const updatedRows = (data ?? []).map(normalizeMenuRow)
+
+    setMenuRows((prev) =>
+      sortMenuById(
+        prev.map((item) => updatedRows.find((row) => row.item_id === item.item_id) ?? item),
+      ),
+    )
+    setArchivedMenuRows((prev) =>
+      sortMenuById(
+        prev.map((item) => updatedRows.find((row) => row.item_id === item.item_id) ?? item),
+      ),
+    )
+
+    return updatedRows
+  }, [removeStoredMenuPhoto])
+
+  const handleRemoveNewMenuPhoto = useCallback(async () => {
+    const imageUrl = newMenuItem.image_url?.trim()
+    if (!imageUrl) return
+
+    setActionError(null)
+    setActionMessage(null)
+    setMenuPhotoRemoveTarget('new')
+    try {
+      await removeStoredMenuPhoto(imageUrl)
+      setNewMenuItem((prev) => ({ ...prev, image_url: '' }))
+      setActionMessage('Menu photo removed.')
+    } catch (err) {
+      setActionError(err?.message ?? 'Could not remove menu photo.')
+    } finally {
+      setMenuPhotoRemoveTarget(null)
+    }
+  }, [newMenuItem.image_url, removeStoredMenuPhoto])
+
+  const handleRemoveEditMenuPhoto = useCallback(async () => {
+    if (!activeEditMenuItem) return
+    const imageUrl = editRecordInputs.image_url?.trim() || activeEditMenuItem.image_url
+    if (!imageUrl) return
+
+    const category =
+      editRecordInputs.category === '__custom__'
+        ? editRecordInputs.customCategory?.trim() ?? ''
+        : editRecordInputs.category?.trim() || activeEditMenuItem.category
+    const name = editRecordInputs.name?.trim() || activeEditMenuItem.name
+
+    setActionError(null)
+    setActionMessage(null)
+    setMenuPhotoRemoveTarget('edit')
+    try {
+      await clearMenuPhotoFromMatchingSizes({ name, category, imageUrl })
+      setEditRecordInputs((prev) => ({ ...prev, image_url: '' }))
+      setActionMessage('Menu photo removed from matching sizes.')
+    } catch (err) {
+      setActionError(err?.message ?? 'Could not remove menu photo.')
+    } finally {
+      setMenuPhotoRemoveTarget(null)
+    }
+  }, [activeEditMenuItem, clearMenuPhotoFromMatchingSizes, editRecordInputs])
+
   const openEditRecordDialog = useCallback((type, record) => {
     setActionError(null)
     setActionMessage(null)
@@ -203,6 +419,7 @@ export default function InventoryDashboard() {
     if (type === 'ingredient') {
       setEditRecordInputs({
         name: record.name,
+        classification: record.classification ?? '',
         current_quantity: String(record.current_quantity),
         unit_of_measure: record.unit_of_measure === 'â€”' ? '' : record.unit_of_measure,
         low_stock: String(record.low_stock),
@@ -218,6 +435,7 @@ export default function InventoryDashboard() {
       category: record.category,
       customCategory: '',
       size_label: record.size_label,
+      image_url: record.image_url ?? '',
       availability_status: record.availability_status || 'available',
     })
     setEditRecordDialog({ type, id: record.item_id })
@@ -312,6 +530,7 @@ export default function InventoryDashboard() {
 
     if (editRecordDialog.type === 'ingredient') {
       const name = editRecordInputs.name?.trim() ?? ''
+      const classification = editRecordInputs.classification?.trim() ?? ''
       const unit = editRecordInputs.unit_of_measure?.trim() ?? ''
       const quantity = parseNonNegativeAmount(editRecordInputs.current_quantity, 0)
       const lowStock = parseNonNegativeAmount(editRecordInputs.low_stock, 0)
@@ -338,6 +557,7 @@ export default function InventoryDashboard() {
         .from('inventory')
         .update({
           name,
+          classification: classification || null,
           current_quantity: quantity,
           unit_of_measure: unit,
           low_stock: lowStock,
@@ -382,6 +602,7 @@ export default function InventoryDashboard() {
         ? editRecordInputs.customCategory?.trim() ?? ''
         : editRecordInputs.category?.trim() ?? ''
     const sizeLabel = editRecordInputs.size_label?.trim() ?? ''
+    const imageUrl = editRecordInputs.image_url?.trim() ?? ''
     const availability = editRecordInputs.availability_status?.trim() || 'available'
 
     if (!name) {
@@ -416,6 +637,7 @@ export default function InventoryDashboard() {
         price,
         category,
         size_label: sizeLabel || null,
+        image_url: imageUrl || null,
         availability_status: availability,
       })
       .eq('item_id', editRecordDialog.id)
@@ -429,7 +651,21 @@ export default function InventoryDashboard() {
       return
     }
 
-    const row = normalizeMenuRow(updated)
+    let row = normalizeMenuRow(updated)
+
+    if (row.image_url) {
+      try {
+        const sharedRows = await applyMenuPhotoToMatchingSizes({
+          name: row.name,
+          category: row.category,
+          imageUrl: row.image_url,
+        })
+        row = sharedRows.find((item) => item.item_id === row.item_id) ?? row
+      } catch (photoErr) {
+        setActionError(`Menu item saved, but sharing the photo across sizes failed: ${photoErr.message}`)
+      }
+    }
+
     if (row.availability_status.toLowerCase() === 'unavailable') {
       setMenuRows((prev) => prev.filter((item) => item.item_id !== row.item_id))
       setArchivedMenuRows((prev) =>
@@ -439,8 +675,12 @@ export default function InventoryDashboard() {
       setMenuRows((prev) => sortMenuById(prev.map((item) => (item.item_id === row.item_id ? row : item))))
     }
     setEditRecordDialog(null)
-    setActionMessage(`${row.name} updated.`)
-  }, [editRecordDialog, editRecordInputs])
+    setActionMessage(
+      row.image_url
+        ? `${row.name} updated. Photo reused for matching sizes.`
+        : `${row.name} updated.`,
+    )
+  }, [applyMenuPhotoToMatchingSizes, editRecordDialog, editRecordInputs])
 
   const handleSetMenuAvailability = useCallback(async (item, nextStatus) => {
     if (!supabase || !item?.item_id) return
@@ -726,6 +966,7 @@ export default function InventoryDashboard() {
     if (!supabase) return
 
     const name = newIngredient.name.trim()
+    const classification = newIngredient.classification.trim()
     const unit = newIngredient.unit_of_measure.trim()
     const quantity = parseNonNegativeAmount(newIngredient.current_quantity, 0)
     const lowStock = parseNonNegativeAmount(newIngredient.low_stock, 0)
@@ -760,6 +1001,7 @@ export default function InventoryDashboard() {
       .from('inventory')
       .insert({
         name,
+        classification: classification || null,
         current_quantity: quantity,
         unit_of_measure: unit,
         low_stock: lowStock,
@@ -821,6 +1063,7 @@ export default function InventoryDashboard() {
         ? customMenuCategory.trim()
         : newMenuItem.category.trim()
     const sizeLabel = newMenuItem.size_label.trim()
+    const imageUrl = newMenuItem.image_url.trim()
     const availability = newMenuItem.availability_status.trim()
 
     setActionError(null)
@@ -856,6 +1099,7 @@ export default function InventoryDashboard() {
         price,
         category,
         size_label: sizeLabel || null,
+        image_url: imageUrl || null,
         availability_status: availability,
         inventory_ingredient_id: null,
       })
@@ -866,16 +1110,28 @@ export default function InventoryDashboard() {
       setActionError(error.message)
     } else {
       if (inserted) {
-        const row = normalizeMenuRow(inserted)
+        let row = normalizeMenuRow(inserted)
+        if (row.image_url) {
+          try {
+            const sharedRows = await applyMenuPhotoToMatchingSizes({
+              name: row.name,
+              category: row.category,
+              imageUrl: row.image_url,
+            })
+            row = sharedRows.find((item) => item.item_id === row.item_id) ?? row
+          } catch (photoErr) {
+            setActionError(`Menu item added, but sharing the photo across sizes failed: ${photoErr.message}`)
+          }
+        }
         setMenuRows((prev) => sortMenuById([...prev.filter((item) => item.item_id !== row.item_id), row]))
       }
-      setActionMessage(`${name} added to menu.`)
+      setActionMessage(imageUrl ? `${name} added to menu. Photo reused for matching sizes.` : `${name} added to menu.`)
       setNewMenuItem(emptyNewMenuItem)
       setCustomMenuCategory('')
     }
 
     setAddingMenuItem(false)
-  }, [customMenuCategory, newMenuItem])
+  }, [applyMenuPhotoToMatchingSizes, customMenuCategory, newMenuItem])
 
   /** Stock In / Out: update `inventory`, then insert `inventory_transactions` (see ERD: quantity_change). */
   const applyStockMovement = useCallback(
@@ -1133,10 +1389,15 @@ export default function InventoryDashboard() {
         missingRecipeDialog={missingRecipeDialog}
         setMissingRecipeDialog={setMissingRecipeDialog}
         editRecordDialog={editRecordDialog}
+        setEditRecordDialog={setEditRecordDialog}
         activeEditIngredient={activeEditIngredient}
         activeEditMenuItem={activeEditMenuItem}
         editRecordInputs={editRecordInputs}
         handleEditRecordInputChange={handleEditRecordInputChange}
+        handleEditMenuPhotoUpload={handleEditMenuPhotoUpload}
+        uploadingEditMenuPhoto={menuPhotoUploadTarget === 'edit'}
+        handleRemoveEditMenuPhoto={handleRemoveEditMenuPhoto}
+        removingEditMenuPhoto={menuPhotoRemoveTarget === 'edit'}
         editRecordBusy={editRecordBusy}
         menuCategoryOptions={menuCategoryOptions}
         openDeleteConfirm={openDeleteConfirm}
@@ -1212,6 +1473,10 @@ export default function InventoryDashboard() {
         handleAddIngredient={handleAddIngredient}
         newMenuItem={newMenuItem}
         handleNewMenuItemChange={handleNewMenuItemChange}
+        handleNewMenuPhotoUpload={handleNewMenuPhotoUpload}
+        uploadingNewMenuPhoto={menuPhotoUploadTarget === 'new'}
+        handleRemoveNewMenuPhoto={handleRemoveNewMenuPhoto}
+        removingNewMenuPhoto={menuPhotoRemoveTarget === 'new'}
         addingMenuItem={addingMenuItem}
         handleAddMenuItem={handleAddMenuItem}
         menuCategoryOptions={menuCategoryOptions}

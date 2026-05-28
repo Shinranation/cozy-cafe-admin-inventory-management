@@ -26,6 +26,7 @@ function normalizeMenuRows(rows) {
         sizeLabel: String(r.size_label ?? ''),
         description: String(r.description ?? ''),
         category: String(r.category ?? ''),
+        imageUrl: String(r.image_url ?? ''),
         price: Number(r.price),
         availabilityStatus,
       }
@@ -83,7 +84,7 @@ function firstMenuItem(rows) {
   return [...rows].sort((a, b) => a.id - b.id)[0] ?? null
 }
 
-function MenuPreviewVisual({ label, active = false }) {
+function MenuPreviewVisual({ label, imageUrl = '', active = false }) {
   return (
     <span
       className={[
@@ -91,15 +92,26 @@ function MenuPreviewVisual({ label, active = false }) {
         active ? 'border-white/25 bg-white/10' : 'border-[#D98C5F]/30',
       ].join(' ')}
     >
-      <span className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
-        <span className="absolute h-[1px] w-full rotate-45 bg-current" />
-        <span className="absolute h-[1px] w-full -rotate-45 bg-current" />
-      </span>
-      <span className="absolute inset-x-3 bottom-3 rounded-lg bg-white/85 px-3 py-2 text-center shadow-sm">
-        <span className="block truncate text-xs font-extrabold uppercase tracking-wide text-[#3B2F2A]">
-          {label}
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={label}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <span className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
+          <span className="absolute h-[1px] w-full rotate-45 bg-current" />
+          <span className="absolute h-[1px] w-full -rotate-45 bg-current" />
         </span>
-      </span>
+      )}
+      {!imageUrl ? (
+        <span className="absolute inset-x-3 bottom-3 rounded-lg bg-white/85 px-3 py-2 text-center shadow-sm">
+          <span className="block truncate text-xs font-extrabold uppercase tracking-wide text-[#3B2F2A]">
+            {label}
+          </span>
+        </span>
+      ) : null}
     </span>
   )
 }
@@ -118,7 +130,7 @@ export default function Customer() {
     const [directResult, rpcResult] = await Promise.all([
       supabase
         .from('menu')
-        .select('item_id,name,size_label,description,price,category,availability_status')
+        .select('item_id,name,size_label,description,price,category,image_url,availability_status')
         .order('category')
         .order('name'),
       supabase.rpc('get_menu_public'),
@@ -395,7 +407,7 @@ export default function Customer() {
                       onClick={() => chooseRoot(option.name)}
                       className="rounded-[28px] border border-[#D98C5F]/35 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60"
                     >
-                      <MenuPreviewVisual label={sample?.name || option.name} />
+                      <MenuPreviewVisual label={sample?.name || option.name} imageUrl={sample?.imageUrl || ''} />
                       <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
                         Category
                       </span>
@@ -449,7 +461,7 @@ export default function Customer() {
                           : 'border-[#D98C5F]/35 bg-white hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60',
                       ].join(' ')}
                     >
-                      <MenuPreviewVisual label={sample?.name || cat} active={isActive} />
+                      <MenuPreviewVisual label={sample?.name || cat} imageUrl={sample?.imageUrl || ''} active={isActive} />
                       <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
                         {activeRoot}
                       </span>
@@ -512,7 +524,7 @@ export default function Customer() {
                           : 'border-black/15 bg-white text-[#3B2F2A] hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60',
                       ].join(' ')}
                     >
-                      <MenuPreviewVisual label={name} active={isActive} />
+                      <MenuPreviewVisual label={name} imageUrl={sample?.imageUrl || ''} active={isActive} />
                       <span
                         className={[
                           'mt-4 block text-[10px] font-black uppercase tracking-[0.18em]',
@@ -625,10 +637,19 @@ export default function Customer() {
                     >
                       {isAvailable ? 'Available' : 'Unavailable'}
                     </span>
-                    <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
-                      <div className="absolute w-full h-[1px] bg-black rotate-45" />
-                      <div className="absolute w-full h-[1px] bg-black -rotate-45" />
-                    </div>
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
+                        <div className="absolute w-full h-[1px] bg-black rotate-45" />
+                        <div className="absolute w-full h-[1px] bg-black -rotate-45" />
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4">
