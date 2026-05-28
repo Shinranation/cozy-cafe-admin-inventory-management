@@ -216,6 +216,7 @@ export default function AdminDashboardCosts() {
   const [resetEmail, setResetEmail] = useState('')
   const [resetBusy, setResetBusy] = useState(false)
   const [resetMessage, setResetMessage] = useState(null)
+  const [showAllBestSellers, setShowAllBestSellers] = useState(false)
 
   const resetReady =
     resetInputs.email.trim().toLowerCase() === resetEmail.trim().toLowerCase() &&
@@ -360,6 +361,12 @@ export default function AdminDashboardCosts() {
     () => bestSellingRows.reduce((sum, item) => sum + item.totalRevenue, 0),
     [bestSellingRows],
   )
+
+  const visibleBestSellingRows = showAllBestSellers
+    ? bestSellingRows
+    : bestSellingRows.slice(0, 10)
+
+  const hiddenBestSellerCount = Math.max(0, bestSellingRows.length - visibleBestSellingRows.length)
 
   const maxRevenue = Math.max(1, ...computedData.map((item) => item.totalRevenue))
   const maxCost = Math.max(1, ...computedData.map((item) => item.totalExpenses))
@@ -688,14 +695,32 @@ export default function AdminDashboardCosts() {
             </div>
 
             <div className="rounded-2xl border border-[#D98C5F]/25 p-5">
-              <h3 className="text-xl font-bold text-gray-800">Best Selling Menu</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Best Selling Menu</h3>
+                  <p className="mt-1 text-xs font-semibold text-gray-500">
+                    {bestSellingRows.length > 10 && !showAllBestSellers
+                      ? `Showing top 10 of ${bestSellingRows.length} sold items.`
+                      : `Showing ${bestSellingRows.length} sold item${bestSellingRows.length !== 1 ? 's' : ''}.`}
+                  </p>
+                </div>
+                {bestSellingRows.length > 10 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllBestSellers((prev) => !prev)}
+                    className="rounded-full border border-[#D98C5F]/30 bg-white px-4 py-2 text-xs font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                  >
+                    {showAllBestSellers ? 'Show Top 10' : `See All (${bestSellingRows.length})`}
+                  </button>
+                ) : null}
+              </div>
               <div className="mt-4 space-y-3">
                 {bestSellingRows.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
                     No received orders recorded for this month.
                   </p>
                 ) : (
-                  bestSellingRows.map((item, index) => (
+                  visibleBestSellingRows.map((item, index) => (
                     <div
                       key={`${item.name}-${index}`}
                       className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3"
@@ -717,6 +742,15 @@ export default function AdminDashboardCosts() {
                     </div>
                   ))
                 )}
+                {hiddenBestSellerCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllBestSellers(true)}
+                    className="w-full rounded-xl border border-dashed border-[#D98C5F]/40 bg-[#FFF7F1]/60 px-4 py-3 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                  >
+                    See {hiddenBestSellerCount} more item{hiddenBestSellerCount !== 1 ? 's' : ''}
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>

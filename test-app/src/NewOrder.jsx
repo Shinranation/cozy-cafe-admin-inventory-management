@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, supabaseConfigured, defaultPosCashierId } from './lib/supabaseClient.js'
 
-/** @typedef {{ item_id: number, name: string, size_label: string, price: number, category: string, availability_status: string }} MenuItemRow */
+/** @typedef {{ item_id: number, name: string, size_label: string, price: number, category: string, availability_status: string, has_recipe: boolean }} MenuItemRow */
 
 function menuItemLabel(item) {
   return item.size_label ? `${item.name} (${item.size_label})` : item.name
@@ -91,6 +91,25 @@ export default function NewOrder({ onBack, onCancel }) {
       return
     }
 
+    const menuIds = (data ?? [])
+      .map((r) => Number(r.item_id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+    const recipeMenuIds = new Set()
+
+    if (menuIds.length > 0) {
+      const { data: recipeRows, error: recipeError } = await supabase
+        .from('menu_ingredients')
+        .select('menu_item_id')
+        .in('menu_item_id', menuIds)
+
+      if (!recipeError) {
+        for (const row of recipeRows ?? []) {
+          const id = Number(row.menu_item_id)
+          if (Number.isFinite(id)) recipeMenuIds.add(id)
+        }
+      }
+    }
+
     setItems(
       (data ?? [])
         .map((r) => ({
@@ -100,6 +119,7 @@ export default function NewOrder({ onBack, onCancel }) {
           price: Number(r.price) || 0,
           category: String(r.category ?? ''),
           availability_status: String(r.availability_status ?? ''),
+          has_recipe: recipeMenuIds.has(Number(r.item_id)),
         }))
         .filter(
           (r) =>
@@ -236,6 +256,7 @@ export default function NewOrder({ onBack, onCancel }) {
           name: menuItemLabel(item),
           price: item.price,
           qty: n,
+          hasRecipe: item.has_recipe,
           lineTotal: item.price * n,
         }
       })
@@ -288,7 +309,7 @@ export default function NewOrder({ onBack, onCancel }) {
     if (error) {
       const msg = error.message ?? String(error)
       if (msg.includes('NO_RECIPE')) {
-        setConfirmError('One or more menu items do not have linked ingredients yet. Add recipe ingredients in Inventory > Menu Item.')
+        setConfirmError('The database is still using the old recipe-required order function. Run the allow-orders-without-recipe SQL migration, then retry this order.')
       } else if (msg.includes('ARCHIVED_INGREDIENT')) {
         setConfirmError('One or more menu recipes use archived ingredients. Update the recipe links in Inventory > Menu Item.')
       } else if (msg.includes('inventory_ingredient_id is null')) {
@@ -621,6 +642,11 @@ export default function NewOrder({ onBack, onCancel }) {
                     </div>
 
                     <p className="mt-3 text-center text-sm font-extrabold text-gray-700">₱{item.price.toFixed(2)}</p>
+                    {!item.has_recipe ? (
+                      <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-center text-[11px] font-bold text-amber-800">
+                        No recipe linked. Stock will not be deducted.
+                      </p>
+                    ) : null}
                     <div className="mt-3 flex items-center justify-center gap-3">
                       <button
                         type="button"
@@ -691,6 +717,11 @@ export default function NewOrder({ onBack, onCancel }) {
                           <p className="text-xs text-gray-500">
                             ₱{row.price.toFixed(2)} × {row.qty}
                           </p>
+                          {!row.hasRecipe ? (
+                            <p className="mt-1 text-[11px] font-bold text-amber-700">
+                              No stock deduction
+                            </p>
+                          ) : null}
                         </div>
 
                         <p className="shrink-0 font-extrabold text-gray-800">₱{row.lineTotal.toFixed(2)}</p>
