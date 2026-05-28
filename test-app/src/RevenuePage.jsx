@@ -368,9 +368,14 @@ export default function AdminDashboardCosts() {
 
   const hiddenBestSellerCount = Math.max(0, bestSellingRows.length - visibleBestSellingRows.length)
 
-  const maxRevenue = Math.max(1, ...computedData.map((item) => item.totalRevenue))
-  const maxCost = Math.max(1, ...computedData.map((item) => item.totalExpenses))
-  const maxNet = Math.max(1, ...computedData.map((item) => Math.abs(item.netIncome)))
+  const maxMonthlyAmount = Math.max(
+    1,
+    ...computedData.flatMap((item) => [
+      item.totalRevenue,
+      item.totalExpenses,
+      Math.abs(item.netIncome),
+    ]),
+  )
   const maxWeeklyRevenue = Math.max(1, ...currentMonthData.weeklyRevenue)
 
   return (
@@ -547,9 +552,9 @@ export default function AdminDashboardCosts() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {computedData.map((data) => {
-              const revenueHeight = (data.totalRevenue / maxRevenue) * 130
-              const costHeight = (data.totalExpenses / maxCost) * 130
-              const netHeight = (Math.abs(data.netIncome) / maxNet) * 130
+              const revenueHeight = (data.totalRevenue / maxMonthlyAmount) * 130
+              const costHeight = (data.totalExpenses / maxMonthlyAmount) * 130
+              const netHeight = (Math.abs(data.netIncome) / maxMonthlyAmount) * 130
               const netColor = data.netIncome >= 0 ? 'bg-orange-400' : 'bg-red-700'
 
               return (
