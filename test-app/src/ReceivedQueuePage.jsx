@@ -324,9 +324,9 @@ export default function ReceivedQueuePage({ onBackToPending }) {
         {deleteDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
-              <h3 className="text-lg font-bold text-gray-900">Delete Received Orders</h3>
+              <h3 className="text-lg font-bold text-gray-900">Delete Receipt History</h3>
               <p className="mt-2 text-sm text-gray-600">
-                This deletes {deleteDialog.orderCount} received order{deleteDialog.orderCount !== 1 ? 's' : ''}, order items, and payments from {deleteDialog.groups.length} selected date{deleteDialog.groups.length !== 1 ? 's' : ''}. Inventory quantities stay unchanged.
+                This removes {deleteDialog.orderCount} received receipt record{deleteDialog.orderCount !== 1 ? 's' : ''}, order items, and payments from {deleteDialog.groups.length} selected date{deleteDialog.groups.length !== 1 ? 's' : ''}. It does not cancel sales or restore inventory quantities.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {deleteDialog.groups.map((group) => (
@@ -392,7 +392,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
                   disabled={deleteBusy || !deleteReady}
                   className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
                 >
-                  {deleteBusy ? 'Deleting...' : 'Delete Selected Dates'}
+                {deleteBusy ? 'Deleting...' : 'Delete Receipt History'}
                 </button>
               </div>
             </div>
@@ -412,7 +412,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
             </p>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs font-semibold text-gray-500">
-                {deleteDateMode ? 'Delete mode: choose one or more dates, then confirm deletion.' : 'Choose a date to view receipts.'}
+                {deleteDateMode ? 'Delete mode: choose one or more receipt dates, then confirm deletion.' : 'Choose a date to view receipts.'}
               </p>
               <div className="flex flex-wrap gap-2">
                 {deleteDateMode ? (
@@ -422,7 +422,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
                     disabled={selectedDeleteDateGroups.length === 0}
                     className="rounded-full bg-red-600 px-4 py-2 text-xs font-extrabold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Delete Selected ({selectedDeleteDateGroups.length})
+                    Delete Selected Receipts ({selectedDeleteDateGroups.length})
                   </button>
                 ) : null}
                 <button
@@ -439,7 +439,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
                       : 'border border-red-200 bg-white text-red-700 hover:bg-red-50',
                   ].join(' ')}
                 >
-                  {deleteDateMode ? 'Cancel Delete Dates' : 'Delete Dates'}
+                  {deleteDateMode ? 'Cancel Delete' : 'Delete Receipt Dates'}
                 </button>
               </div>
             </div>

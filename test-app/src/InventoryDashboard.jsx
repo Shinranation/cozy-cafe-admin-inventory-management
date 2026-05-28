@@ -927,13 +927,6 @@ export default function InventoryDashboard() {
   const handleRemoveRecipeIngredient = useCallback(async (recipeRow, menuItem) => {
     if (!supabase) return
 
-    const recipeCount = menuIngredientRows.filter((row) => row.menu_item_id === recipeRow.menu_item_id).length
-    if (recipeCount <= 1) {
-      setActionMessage(null)
-      setActionError('A menu item needs at least one recipe ingredient before it can be ordered.')
-      return
-    }
-
     setActionError(null)
     setActionMessage(null)
     setBusyRecipeRowId(recipeRow.menu_ingredient_id)
@@ -959,7 +952,14 @@ export default function InventoryDashboard() {
       return next
     })
     setRecipeEditDialog(null)
-    setActionMessage(`Ingredient removed from ${menuItem.name}.`)
+    const remainingRecipeCount = menuIngredientRows.filter(
+      (row) => row.menu_item_id === recipeRow.menu_item_id && row.menu_ingredient_id !== recipeRow.menu_ingredient_id,
+    ).length
+    setActionMessage(
+      remainingRecipeCount === 0
+        ? `Ingredient removed from ${menuItem.name}. Orders can still be made, but stock will not be deducted until a recipe is linked.`
+        : `Ingredient removed from ${menuItem.name}.`,
+    )
   }, [menuIngredientRows])
 
   const handleAddIngredient = useCallback(async () => {
@@ -1171,6 +1171,12 @@ export default function InventoryDashboard() {
       const current = Number(fresh.current_quantity)
       const newQty = current + signedDelta
       const actualDelta = newQty - current
+
+      if (newQty < 0) {
+        setActionError(`${row.name} only has ${current} ${row.unit_of_measure}. Stock out cannot make inventory negative.`)
+        setBusyIngredientId(null)
+        return false
+      }
 
       const { error: upErr } = await supabase
         .from('inventory')

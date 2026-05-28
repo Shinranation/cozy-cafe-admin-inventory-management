@@ -1,6 +1,6 @@
--- Cozy Cafe Queue: guarded admin-only delete for one received-order date.
+-- Cozy Cafe Queue: guarded admin-only delete for received-order history by date.
 -- This removes received orders in the selected date range plus their payments
--- and order line items. Inventory quantities are not changed.
+-- and order line items. It does not cancel sales or restore inventory quantities.
 
 CREATE OR REPLACE FUNCTION public.delete_received_orders_by_date(
   p_start_at timestamp with time zone,

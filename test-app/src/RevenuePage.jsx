@@ -170,6 +170,10 @@ function menuItemDisplayName(item) {
   return [item?.name, item?.size_label].filter(Boolean).join(' - ') || 'Unknown Menu Item'
 }
 
+function menuItemBaseName(item) {
+  return String(item?.name ?? '').trim() || 'Unknown Menu Item'
+}
+
 function buildBestSellingRows(orders, year, monthName) {
   const byMenuItem = new Map()
 
@@ -177,24 +181,29 @@ function buildBestSellingRows(orders, year, monthName) {
     if (!isInSelectedPeriod(order.created_at, year, monthName)) continue
 
     for (const item of order.items ?? []) {
-      const key = String(item.menu_item_id ?? menuItemDisplayName(item))
+      const key = menuItemBaseName(item).toLowerCase()
       const quantity = safeNumber(item.quantity)
       const revenue = safeNumber(item.sub_total)
       const current = byMenuItem.get(key) ?? {
-        name: menuItemDisplayName(item),
+        name: menuItemBaseName(item),
         quantitySold: 0,
         totalRevenue: 0,
         orderLineCount: 0,
+        variants: new Set(),
       }
 
       current.quantitySold += quantity
       current.totalRevenue += revenue
       current.orderLineCount += 1
+      if (item?.size_label) current.variants.add(String(item.size_label))
       byMenuItem.set(key, current)
     }
   }
 
-  return [...byMenuItem.values()].sort(
+  return [...byMenuItem.values()].map((item) => ({
+    ...item,
+    variantSummary: [...item.variants].sort().join(', '),
+  })).sort(
     (a, b) => b.quantitySold - a.quantitySold || b.totalRevenue - a.totalRevenue,
   )
 }
@@ -417,7 +426,7 @@ export default function AdminDashboardCosts() {
             <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
               <h3 className="text-lg font-bold text-gray-900">Reset Revenue Data</h3>
               <p className="mt-2 text-sm text-gray-600">
-                This clears orders, order items, payments, and expenses. Inventory quantities and menu recipes stay unchanged.
+                This clears orders, order items, payments, and expenses for reporting cleanup. It does not cancel sales or restore inventory quantities.
               </p>
 
               <div className="mt-5 space-y-4">
@@ -737,6 +746,11 @@ export default function AdminDashboardCosts() {
                         <p className="mt-1 break-words font-bold text-gray-800">
                           {item.name}
                         </p>
+                        {item.variantSummary ? (
+                          <p className="mt-1 text-xs font-semibold text-gray-400">
+                            Sizes: {item.variantSummary}
+                          </p>
+                        ) : null}
                         <p className="mt-1 text-xs font-semibold text-gray-500">
                           Sold: {item.quantitySold}
                         </p>

@@ -131,6 +131,7 @@ export default function Customer() {
       supabase
         .from('menu')
         .select('item_id,name,size_label,description,price,category,image_url,availability_status')
+        .eq('availability_status', 'available')
         .order('category')
         .order('name'),
       supabase.rpc('get_menu_public'),
