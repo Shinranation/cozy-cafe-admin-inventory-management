@@ -56,7 +56,7 @@ Financial Auditing: Tracks revenue from orders, expenses from costs, and net inc
 
 ## Local Setup
 
-Clone the repository.
+Clone the repository and follow the full setup, Supabase schema, Google login, and admin instructions in `test-app/README.md`.
 
 Navigate to the project folder:
 
@@ -75,3 +75,5 @@ Start the development server:
 ```bash
 npm run dev
 ```
+
+The app expects Supabase environment variables in the repo-root `.env` file because `test-app/vite.config.js` sets `envDir` to the parent directory.

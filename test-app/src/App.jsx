@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Customer from './customer.jsx'
 import InventoryDashboard from './InventoryDashboard.jsx'
 import RevenuePage from './RevenuePage.jsx'
@@ -16,6 +16,8 @@ export default function App() {
   const [queueRefreshKey, setQueueRefreshKey] = useState(0)
   const [session, setSession] = useState(null)
   const [adminSignedIn, setAdminSignedIn] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuRef = useRef(null)
 
   const signedInUser = session?.user ?? null
 
@@ -73,9 +75,33 @@ export default function App() {
     }
   }, [signedInUser])
 
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!userMenuRef.current?.contains(event.target)) {
+        setUserMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [])
+
+  function handleUserButtonClick() {
+    if (!signedInUser) {
+      setPage('login')
+      return
+    }
+
+    setUserMenuOpen((open) => !open)
+  }
+
   async function handleSignOut() {
     if (!supabase) return
     await supabase.auth.signOut()
+    setUserMenuOpen(false)
     setPage('customer')
   }
 
@@ -131,24 +157,42 @@ export default function App() {
             </>
           )}
 
+          <div className="relative" ref={userMenuRef}>
           {/* LOGIN BUTTON (ALWAYS VISIBLE) */}
           <button
-            className="text-lg px-2"
-            onClick={() => setPage('login')}
+            type="button"
+            className="grid h-9 w-9 place-items-center rounded-full border border-gray-200 bg-white text-lg shadow-sm transition hover:bg-gray-50"
+            onClick={handleUserButtonClick}
             title={signedInUser?.email ?? 'Login'}
+            aria-haspopup={signedInUser ? 'menu' : undefined}
+            aria-expanded={signedInUser ? userMenuOpen : undefined}
           >
             👤
           </button>
 
-          {/* SIGN OUT */}
-          {signedInUser && (
-            <button
-              onClick={handleSignOut}
-              className="text-xs text-red-500 ml-2"
-            >
-              Sign out
-            </button>
-          )}
+            {signedInUser && userMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-11 z-50 w-64 rounded-xl border border-gray-200 bg-white p-2 text-sm shadow-lg"
+              >
+                <div className="border-b border-gray-100 px-3 py-2">
+                  <p className="truncate font-semibold text-gray-800">{signedInUser.email}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    {adminSignedIn ? 'Admin access' : 'Signed in'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleSignOut}
+                  className="mt-2 w-full rounded-lg px-3 py-2 text-left font-semibold text-red-600 transition hover:bg-red-50"
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </nav>
 
