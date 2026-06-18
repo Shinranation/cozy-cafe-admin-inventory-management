@@ -66,7 +66,7 @@ function MenuPreviewVisual({ label, imageUrl = '', active = false }) {
   return (
     <span
       className={[
-        'relative block aspect-[4/3] w-full overflow-hidden rounded-xl border bg-white',
+        'relative block aspect-[5/3] w-full overflow-hidden rounded-lg border bg-white sm:aspect-[4/3] sm:rounded-xl',
         active ? 'border-white/25 bg-white/10' : 'border-[#D98C5F]/30',
       ].join(' ')}
     >
@@ -84,8 +84,8 @@ function MenuPreviewVisual({ label, imageUrl = '', active = false }) {
         </span>
       )}
       {!imageUrl ? (
-        <span className="absolute inset-x-3 bottom-3 rounded-lg bg-white/85 px-3 py-2 text-center shadow-sm">
-          <span className="block truncate text-xs font-extrabold uppercase tracking-wide text-[#3B2F2A]">
+        <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/85 px-2 py-1.5 text-center shadow-sm sm:inset-x-3 sm:bottom-3 sm:rounded-lg sm:px-3 sm:py-2">
+          <span className="block truncate text-[9px] font-extrabold uppercase tracking-wide text-[#3B2F2A] sm:text-xs">
             {label}
           </span>
         </span>
@@ -322,13 +322,13 @@ export default function MenuPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F0E6] text-[#3B2F2A]">
-      <main className="mx-auto max-w-6xl px-10 pb-16">
-        <h2 className="py-28 text-center text-7xl font-extrabold tracking-tight text-gray-500/80">
+      <main className="mx-auto max-w-6xl px-4 pb-10 sm:px-10 sm:pb-16">
+        <h2 className="py-12 text-center text-5xl font-extrabold tracking-tight text-gray-500/80 sm:py-28 sm:text-7xl">
           Promotions
         </h2>
 
         <section className="mx-auto max-w-4xl">
-          <h3 className="mb-10 text-center text-5xl font-extrabold">Menu</h3>
+          <h3 className="mb-6 text-center text-4xl font-extrabold sm:mb-10 sm:text-5xl">Menu</h3>
 
           {!configured && (
             <p className="mb-8 text-center text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -341,7 +341,7 @@ export default function MenuPage() {
               {fetchError}
               <button
                 type="button"
-                className="ml-2 text-xs font-bold underline text-[#D98C5F]"
+                className="ml-2 rounded-full border border-[#D98C5F]/40 bg-white px-3 py-1.5 text-xs font-bold text-[#D98C5F] shadow-sm transition hover:bg-[#FFF7F1]"
                 onClick={() => void loadMenu()}
               >
                 Retry
@@ -355,9 +355,9 @@ export default function MenuPage() {
             </p>
           )}
 
-          <div className="mx-auto mb-12 max-w-4xl space-y-5">
+          <div className="mx-auto mb-8 max-w-4xl space-y-4 sm:mb-12 sm:space-y-5">
             {activeRoot === 'All' ? (
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-3 sm:gap-5">
                 {rootCategoryOptions.map((option) => {
                   const sample = option.sample
 
@@ -366,16 +366,16 @@ export default function MenuPage() {
                       key={option.name}
                       type="button"
                       onClick={() => chooseRoot(option.name)}
-                      className="rounded-[28px] border border-[#D98C5F]/35 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60"
+                      className="rounded-2xl border border-[#D98C5F]/35 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60 sm:rounded-[28px] sm:p-4"
                     >
                       <MenuPreviewVisual label={sample?.name || option.name} imageUrl={sample?.imageUrl || ''} />
-                      <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                      <span className="mt-3 block text-[9px] font-black uppercase tracking-[0.12em] text-[#D98C5F] sm:mt-4 sm:text-[10px] sm:tracking-[0.18em]">
                         Category
                       </span>
-                      <span className="mt-1 block break-words text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                      <span className="mt-1 block break-words text-base font-extrabold leading-tight text-[#3B2F2A] sm:text-2xl">
                         {option.name}
                       </span>
-                      <span className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#D98C5F]/20 bg-[#F7F0E6]/70 px-3 py-2 text-xs font-bold text-[#3B2F2A]/65">
+                      <span className="mt-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border border-[#D98C5F]/20 bg-[#F7F0E6]/70 px-2 py-1.5 text-[10px] font-bold text-[#3B2F2A]/65 sm:mt-3 sm:gap-2 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs">
                         <span>{option.count} item{option.count !== 1 ? 's' : ''}</span>
                         {sample ? <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span> : null}
                       </span>
@@ -384,19 +384,19 @@ export default function MenuPage() {
                 })}
               </div>
             ) : (
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#D98C5F]/25 bg-white px-4 py-3 shadow-sm sm:gap-4 sm:px-5 sm:py-4">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
                     Selected category
                   </p>
-                  <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                  <p className="mt-1 text-xl font-extrabold leading-tight text-[#3B2F2A] sm:text-2xl">
                     {activeRoot}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={goBackToParents}
-                  className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                  className="rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1] sm:px-5 sm:py-2.5 sm:text-sm"
                 >
                   Back
                 </button>
@@ -404,7 +404,7 @@ export default function MenuPage() {
             )}
 
             {subCategoryOptions.length > 0 && !activeSubCategory ? (
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
                 {subCategoryOptions.map((option) => {
                   const cat = option.name
                   const isActive = activeSubCategory === cat
@@ -416,25 +416,25 @@ export default function MenuPage() {
                       type="button"
                       onClick={() => chooseSubCategory(cat)}
                       className={[
-                        'rounded-[28px] border p-4 text-left shadow-sm transition hover:-translate-y-0.5',
+                        'rounded-2xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 sm:rounded-[28px] sm:p-4',
                         isActive
                           ? 'border-[#D98C5F] bg-[#FFF7F1] ring-2 ring-[#D98C5F]/25'
                           : 'border-[#D98C5F]/35 bg-white hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60',
                       ].join(' ')}
                     >
                       <MenuPreviewVisual label={sample?.name || cat} imageUrl={sample?.imageUrl || ''} active={isActive} />
-                      <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                      <span className="mt-3 block text-[9px] font-black uppercase tracking-[0.12em] text-[#D98C5F] sm:mt-4 sm:text-[10px] sm:tracking-[0.18em]">
                         {activeRoot}
                       </span>
-                      <span className="mt-1 block break-words text-lg font-extrabold leading-tight text-[#3B2F2A]">
+                      <span className="mt-1 block break-words text-sm font-extrabold leading-tight text-[#3B2F2A] sm:text-lg">
                         {cat}
                       </span>
                       {sample ? (
-                        <span className="mt-3 block rounded-xl border border-[#D98C5F]/20 bg-white/75 px-3 py-2">
-                          <span className="block truncate text-xs font-bold text-[#3B2F2A]">
+                        <span className="mt-2 block rounded-lg border border-[#D98C5F]/20 bg-white/75 px-2 py-1.5 sm:mt-3 sm:rounded-xl sm:px-3 sm:py-2">
+                          <span className="block truncate text-[10px] font-bold text-[#3B2F2A] sm:text-xs">
                             {sample.name}
                           </span>
-                          <span className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-[#3B2F2A]/60">
+                          <span className="mt-1 flex flex-wrap items-center justify-between gap-1 text-[10px] font-bold text-[#3B2F2A]/60 sm:gap-2 sm:text-[11px]">
                             <span>{sample.sizeLabel || `${option.count} item${option.count !== 1 ? 's' : ''}`}</span>
                             <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span>
                           </span>
@@ -447,19 +447,19 @@ export default function MenuPage() {
             ) : null}
 
             {subCategoryOptions.length > 0 && activeSubCategory ? (
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#D98C5F]/25 bg-white px-4 py-3 shadow-sm sm:gap-4 sm:px-5 sm:py-4">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
                     Selected type
                   </p>
-                  <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                  <p className="mt-1 text-xl font-extrabold leading-tight text-[#3B2F2A] sm:text-2xl">
                     {activeSubCategory}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={goBackToSubCategories}
-                  className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                  className="rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1] sm:px-5 sm:py-2.5 sm:text-sm"
                 >
                   Back
                 </button>
@@ -467,7 +467,7 @@ export default function MenuPage() {
             ) : null}
 
             {drinkOptions.length > 0 && (activeSubCategory || subCategories.length === 0) && !activeDrinkName ? (
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
                 {drinkOptions.map((option) => {
                   const name = option.name
                   const isActive = activeDrinkName === name
@@ -479,7 +479,7 @@ export default function MenuPage() {
                       type="button"
                       onClick={() => chooseDrinkName(name)}
                       className={[
-                        'rounded-[28px] border p-4 text-left shadow-sm transition hover:-translate-y-0.5',
+                        'rounded-2xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 sm:rounded-[28px] sm:p-4',
                         isActive
                           ? 'border-[#3B2F2A] bg-[#3B2F2A] text-white'
                           : 'border-black/15 bg-white text-[#3B2F2A] hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60',
@@ -488,19 +488,19 @@ export default function MenuPage() {
                       <MenuPreviewVisual label={name} imageUrl={sample?.imageUrl || ''} active={isActive} />
                       <span
                         className={[
-                          'mt-4 block text-[10px] font-black uppercase tracking-[0.18em]',
+                          'mt-3 block text-[9px] font-black uppercase tracking-[0.12em] sm:mt-4 sm:text-[10px] sm:tracking-[0.18em]',
                           isActive ? 'text-white/65' : 'text-[#D98C5F]',
                         ].join(' ')}
                       >
                         {activeSubCategory || activeRoot}
                       </span>
-                      <span className="mt-1 block break-words text-base font-extrabold leading-tight">
+                      <span className="mt-1 block break-words text-sm font-extrabold leading-tight sm:text-base">
                         {name}
                       </span>
                       {sample ? (
                         <span
                           className={[
-                            'mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-bold',
+                            'mt-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border px-2 py-1.5 text-[10px] font-bold sm:mt-3 sm:gap-2 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs',
                             isActive
                               ? 'border-white/20 bg-white/10 text-white/75'
                               : 'border-[#D98C5F]/20 bg-[#F7F0E6]/70 text-[#3B2F2A]/60',
@@ -519,32 +519,32 @@ export default function MenuPage() {
             ) : null}
 
             {activeDrinkName ? (
-              <div className="rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="rounded-2xl border border-[#D98C5F]/25 bg-white px-4 py-3 shadow-sm sm:px-5 sm:py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
                       Selected item
                     </p>
-                    <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                    <p className="mt-1 text-xl font-extrabold leading-tight text-[#3B2F2A] sm:text-2xl">
                       {activeDrinkName}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={goBackToDrinkNames}
-                    className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                    className="rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1] sm:px-5 sm:py-2.5 sm:text-sm"
                   >
                     Back
                   </button>
                 </div>
 
                 {sizes.length > 1 ? (
-                  <div className="mt-4 flex flex-wrap gap-3">
+                  <div className="mt-3 flex flex-wrap gap-2 sm:mt-4 sm:gap-3">
                     <button
                       type="button"
                       onClick={() => chooseSize('')}
                       className={[
-                        'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
+                        'rounded-full border px-3 py-1.5 text-xs font-bold transition-colors sm:px-4 sm:py-2',
                         activeSize === ''
                           ? 'border-transparent bg-[#3B2F2A] text-white'
                           : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
@@ -561,7 +561,7 @@ export default function MenuPage() {
                           type="button"
                           onClick={() => chooseSize(size)}
                           className={[
-                            'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
+                            'rounded-full border px-3 py-1.5 text-xs font-bold transition-colors sm:px-4 sm:py-2',
                             isActive
                               ? 'border-transparent bg-[#3B2F2A] text-white'
                               : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
@@ -577,7 +577,7 @@ export default function MenuPage() {
             ) : null}
           </div>
 
-          <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-10">
             {visibleItems.map((item) => {
               const isExpanded = expandedItemId === item.id
               const isAvailable = item.availabilityStatus.toLowerCase() === 'available'
@@ -585,12 +585,12 @@ export default function MenuPage() {
               return (
                 <article
                   key={item.id}
-                  className="rounded-[28px] border-2 border-[#D98C5F] bg-white p-5"
+                  className="rounded-2xl border border-[#D98C5F] bg-white p-3 sm:rounded-[28px] sm:border-2 sm:p-5"
                 >
-                  <div className="aspect-[4/3] w-full overflow-hidden rounded-xl border-2 border-black/40 bg-white relative">
+                  <div className="aspect-[5/3] w-full overflow-hidden rounded-lg border border-black/30 bg-white relative sm:aspect-[4/3] sm:rounded-xl sm:border-2 sm:border-black/40">
                     <span
                       className={[
-                        'absolute right-3 top-3 z-10 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wide shadow-sm',
+                        'absolute right-2 top-2 z-10 rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wide shadow-sm sm:right-3 sm:top-3 sm:px-3 sm:py-1 sm:text-[10px]',
                         isAvailable
                           ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
                           : 'border-red-300 bg-red-100 text-red-800',
@@ -613,34 +613,34 @@ export default function MenuPage() {
                     )}
                   </div>
 
-                  <div className="mt-4">
+                  <div className="mt-3 sm:mt-4">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="text-xl font-extrabold leading-tight text-[#3B2F2A]">
+                      <p className="text-sm font-extrabold leading-tight text-[#3B2F2A] sm:text-xl">
                         {item.name}
                       </p>
                     </div>
 
                     {item.sizeLabel ? (
-                      <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[#3B2F2A]/55">
+                      <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#3B2F2A]/55 sm:text-xs">
                         {item.sizeLabel}
                       </p>
                     ) : null}
 
-                    <p className="mt-2 text-lg font-extrabold text-[#D98C5F]">
+                    <p className="mt-2 text-sm font-extrabold text-[#D98C5F] sm:text-lg">
                       {formatPrice(item.price)}
                     </p>
 
                     {item.description ? (
                       <p
                         className={[
-                          'mt-3 text-sm leading-relaxed text-black/65',
+                          'mt-2 text-xs leading-relaxed text-black/65 sm:mt-3 sm:text-sm',
                           isExpanded ? '' : 'line-clamp-3',
                         ].join(' ')}
                       >
                         {item.description}
                       </p>
                     ) : (
-                      <p className="mt-3 text-sm leading-relaxed text-black/45">
+                      <p className="mt-2 text-xs leading-relaxed text-black/45 sm:mt-3 sm:text-sm">
                         No description added yet.
                       </p>
                     )}
@@ -649,7 +649,7 @@ export default function MenuPage() {
                       <button
                         type="button"
                         onClick={() => toggleDetails(item.id)}
-                        className="mt-4 w-full rounded-full border border-[#D98C5F]/40 px-4 py-2 text-sm font-bold text-[#D98C5F] transition hover:bg-[#D98C5F]/10"
+                        className="mt-3 w-full rounded-full border border-[#D98C5F]/40 px-3 py-1.5 text-xs font-bold text-[#D98C5F] transition hover:bg-[#D98C5F]/10 sm:mt-4 sm:px-4 sm:py-2 sm:text-sm"
                       >
                         {isExpanded ? 'Show less' : 'More details'}
                       </button>
@@ -661,7 +661,7 @@ export default function MenuPage() {
           </div>
 
           {selectionPrompt ? (
-            <p className="mt-10 text-center text-sm font-semibold text-black/50">
+            <p className="mt-6 text-center text-sm font-semibold text-black/50 sm:mt-10">
               {selectionPrompt}
             </p>
           ) : null}

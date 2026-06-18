@@ -26,7 +26,7 @@ export default function App() {
 
   // NAV BUTTON STYLE (optional if you want styling later)
   const navBtn =
-    'text-sm font-semibold px-3 py-1 rounded hover:opacity-80 transition'
+    'rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-[#D98C5F]/50 hover:bg-[#FFF7F1]'
 
   // GET SESSION
   useEffect(() => {

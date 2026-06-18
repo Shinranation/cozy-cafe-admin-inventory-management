@@ -91,30 +91,30 @@ export default function OrdersPage({ onNewOrder, onOpenReceipts, refreshKey = 0 
   }
 
   return (
-    <main className="min-h-screen bg-[#FDFBF4] py-10 px-4 font-sans text-gray-700">
+    <main className="min-h-screen bg-[#FDFBF4] px-3 py-6 font-sans text-gray-700 sm:px-4 sm:py-10">
       <div className="max-w-6xl mx-auto">
-        <header className="text-center mb-16">
-          <h1 className="text-6xl md:text-7xl font-bold text-gray-500/80 leading-tight">
+        <header className="mb-8 text-center sm:mb-16">
+          <h1 className="text-5xl font-bold leading-tight text-gray-500/80 md:text-7xl">
             Admin Dashboard <br /> Orders
           </h1>
         </header>
 
-        <div className="mb-10 flex flex-wrap items-center justify-between gap-4 px-2">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 px-1 sm:mb-10 sm:gap-4 sm:px-2">
           <button
             type="button"
             onClick={() => onNewOrder?.()}
-            className="inline-flex items-center rounded-full bg-[#D98C5F] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:opacity-90"
+            className="inline-flex items-center rounded-full bg-[#D98C5F] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 sm:px-6 sm:py-3"
           >
             + New Order
           </button>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => {
                 setLoading(true)
                 load().finally(() => setLoading(false))
               }}
-              className="text-sm font-bold text-[#D98C5F] underline disabled:opacity-50"
+              className="rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-bold text-[#D98C5F] shadow-sm transition hover:bg-[#FFF7F1] disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
               disabled={loading || !configured}
             >
               Refresh
@@ -122,7 +122,7 @@ export default function OrdersPage({ onNewOrder, onOpenReceipts, refreshKey = 0 
             <button
               type="button"
               onClick={() => onOpenReceipts?.()}
-              className="inline-flex items-center rounded-full border border-gray-400/40 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50"
+              className="inline-flex items-center rounded-full border border-gray-400/40 bg-white px-4 py-2 text-xs font-bold text-gray-700 shadow-sm transition hover:bg-gray-50 sm:px-5 sm:py-2.5 sm:text-sm"
             >
               View receipts →
             </button>
@@ -149,52 +149,52 @@ export default function OrdersPage({ onNewOrder, onOpenReceipts, refreshKey = 0 
           </p>
         )}
 
-        <div className="space-y-12">
+        <div className="space-y-8 sm:space-y-12">
           {orders.map((order) => {
             const waitMs = getWaitMs(order.created_at, nowMs)
             const waitMinutes = getWaitMinutes(waitMs)
 
             return (
             <section key={order.order_id} className="relative">
-              <div className="flex flex-wrap items-center gap-4 mb-4 px-2">
-                <div className="bg-[#D9C5B2] px-6 py-2 rounded-full border border-gray-400/30 shadow-sm">
-                  <span className="font-bold text-gray-700 text-sm whitespace-nowrap">
+              <div className="mb-3 flex flex-wrap items-center gap-2 px-1 sm:mb-4 sm:gap-4 sm:px-2">
+                <div className="rounded-full border border-gray-400/30 bg-[#D9C5B2] px-4 py-1.5 shadow-sm sm:px-6 sm:py-2">
+                  <span className="whitespace-nowrap text-xs font-bold text-gray-700 sm:text-sm">
                     Order #{String(order.order_id).padStart(3, '0')}
                   </span>
                 </div>
                 <span
-                  className="rounded-full bg-amber-100 text-amber-950 border border-amber-300/60 px-4 py-1 text-xs font-extrabold uppercase tracking-wide"
+                  className="rounded-full border border-amber-300/60 bg-amber-100 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-950 sm:px-4 sm:text-xs"
                   title="New orders are pending until marked received"
                 >
                   Pending
                 </span>
                 <span
-                  className={`rounded-full border px-4 py-1 text-xs font-extrabold uppercase tracking-wide ${waitBadgeClass(waitMs)}`}
+                  className={`rounded-full border px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide sm:px-4 sm:text-xs ${waitBadgeClass(waitMs)}`}
                   title="0-15 min: green, over 15-29 min: yellow, 30+ min: red"
                 >
                   {formatWaitTime(waitMinutes)}
                 </span>
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-700 flex-1 min-w-[12rem]">
+                <h2 className="min-w-[10rem] flex-1 text-2xl font-bold text-gray-700 md:text-4xl">
                   {order.customer_display}
                 </h2>
                 <button
                   type="button"
                   onClick={() => void handleReceived(order.order_id)}
                   disabled={busyOrderId === order.order_id || !configured}
-                  className="shrink-0 rounded-full bg-[#3B2F2A] px-6 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+                  className="shrink-0 rounded-full bg-[#3B2F2A] px-5 py-2 text-xs font-extrabold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50 sm:px-6 sm:py-2.5 sm:text-sm"
                 >
                   {busyOrderId === order.order_id ? '...' : 'Mark Received'}
                 </button>
               </div>
 
-              <div className="bg-white border-2 border-[#D98C5F]/40 rounded-[2.5rem] p-6 shadow-sm overflow-x-auto">
-                <div className="flex gap-6 min-w-max">
+              <div className="overflow-x-auto rounded-2xl border border-[#D98C5F]/40 bg-white p-3 shadow-sm sm:rounded-[2.5rem] sm:border-2 sm:p-6">
+                <div className="flex min-w-max gap-3 sm:gap-6">
                   {(order.items ?? []).map((it, i) => (
                     <div
                       key={`${order.order_id}-${i}-${it.menu_item_id}`}
-                      className="w-36 bg-white border border-[#D98C5F]/30 rounded-[1.5rem] p-3 flex flex-col items-center gap-2"
+                      className="flex w-24 flex-col items-center gap-1.5 rounded-xl border border-[#D98C5F]/30 bg-white p-2 sm:w-36 sm:gap-2 sm:rounded-[1.5rem] sm:p-3"
                     >
-                      <div className="w-full aspect-square bg-white border border-gray-300 rounded-lg relative overflow-hidden">
+                      <div className="relative aspect-square w-full overflow-hidden rounded-md border border-gray-300 bg-white sm:rounded-lg">
                         <div className="absolute inset-0 flex items-center justify-center opacity-20">
                           <div className="absolute w-full h-[1px] bg-black rotate-45" />
                           <div className="absolute w-full h-[1px] bg-black -rotate-45" />

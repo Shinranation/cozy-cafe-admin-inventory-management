@@ -34,7 +34,11 @@ export default function Signup({ onBackToLogin, onClose }) {
         </h2>
         <p className="text-center text-sm text-gray-600 mb-8">
           Already have an account?{' '}
-          <button type="button" onClick={onBackToLogin} className="underline hover:text-[#D79A6F]">
+          <button
+            type="button"
+            onClick={onBackToLogin}
+            className="rounded-full border border-[#D79A6F]/40 bg-white px-3 py-1.5 text-xs font-bold text-[#D79A6F] shadow-sm transition hover:bg-[#FFF7F1]"
+          >
             Log in
           </button>
         </p>
@@ -66,11 +70,19 @@ export default function Signup({ onBackToLogin, onClose }) {
           </p>
         )}
 
-        <div className="mt-12 text-center text-xs space-x-3 text-gray-500">
-          <button type="button" onClick={onBackToLogin} className="hover:text-[#D79A6F] underline">
+        <div className="mt-12 flex flex-wrap justify-center gap-3 text-xs text-gray-500">
+          <button
+            type="button"
+            onClick={onBackToLogin}
+            className="rounded-full border border-[#D79A6F]/40 bg-white px-4 py-2 font-bold text-[#D79A6F] shadow-sm transition hover:bg-[#FFF7F1]"
+          >
             Back to Login
           </button>
-          <button type="button" onClick={onClose} className="hover:text-[#D79A6F] underline">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-gray-200 bg-white px-4 py-2 font-bold text-gray-700 shadow-sm transition hover:border-[#D79A6F]/50 hover:bg-[#FFF7F1]"
+          >
             Back to Promotions
           </button>
         </div>

@@ -27,8 +27,8 @@ export default function PromotionsPage() {
               key={cat}
               type="button"
               onClick={() => setActiveCategory(cat)}
-              className={`text-[10px] font-black w-20 text-center leading-tight tracking-tighter uppercase transition-all
-                  ${activeCategory === cat ? 'text-[#D98C5F] underline underline-offset-4' : 'text-gray-600 hover:text-[#D98C5F]'}`}
+              className={`min-h-12 w-24 rounded-xl border px-3 py-2 text-center text-[10px] font-black leading-tight tracking-tighter uppercase shadow-sm transition-all
+                  ${activeCategory === cat ? 'border-[#D98C5F] bg-[#FFF7F1] text-[#D98C5F]' : 'border-gray-200 bg-white text-gray-600 hover:border-[#D98C5F]/50 hover:bg-[#FFF7F1]'}`}
             >
               {cat}
             </button>

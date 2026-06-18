@@ -404,7 +404,7 @@ export default function SalesPage() {
             <button
               type="button"
               onClick={fetchFinancialData}
-              className="mt-2 text-xs font-bold underline text-[#D98C5F]"
+              className="mt-3 rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-bold text-[#D98C5F] shadow-sm transition hover:bg-[#FFF7F1]"
             >
               Retry
             </button>

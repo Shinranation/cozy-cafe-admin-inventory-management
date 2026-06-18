@@ -296,17 +296,19 @@ export default function ReceiptsPage({ onBackToOrders }) {
           >
             Back to orders
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setLoading(true)
-              load().finally(() => setLoading(false))
-            }}
-            className="text-sm font-bold text-[#D98C5F] underline disabled:opacity-50"
-            disabled={loading || !configured}
-          >
-            Refresh
-          </button>
+          {activeTab === 'receipts' && (
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true)
+                load().finally(() => setLoading(false))
+              }}
+              className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-bold text-[#D98C5F] shadow-sm transition hover:bg-[#FFF7F1] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={loading || !configured}
+            >
+              Refresh
+            </button>
+          )}
         </div>
 
         <div className="mb-8 flex flex-wrap gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm">

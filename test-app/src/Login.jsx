@@ -67,11 +67,19 @@ export default function Login({ onClose, onGoToSignup, adminSignedIn, signedInEm
           </div>
         )}
 
-        <div className="mt-12 text-center text-xs space-x-3 text-gray-500">
-          <button type="button" onClick={onClose} className="hover:text-[#D79A6F] underline">
+        <div className="mt-12 flex flex-wrap justify-center gap-3 text-xs text-gray-500">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-gray-200 bg-white px-4 py-2 font-bold text-gray-700 shadow-sm transition hover:border-[#D79A6F]/50 hover:bg-[#FFF7F1]"
+          >
             Back to Promotions
           </button>
-          <button type="button" onClick={onGoToSignup} className="hover:text-[#D79A6F] underline">
+          <button
+            type="button"
+            onClick={onGoToSignup}
+            className="rounded-full border border-[#D79A6F]/40 bg-white px-4 py-2 font-bold text-[#D79A6F] shadow-sm transition hover:bg-[#FFF7F1]"
+          >
             Create account
           </button>
         </div>

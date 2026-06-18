@@ -39,7 +39,7 @@ function MenuPreviewVisual({ label, active = false }) {
   return (
     <span
       className={[
-        'relative block aspect-[4/3] w-full overflow-hidden rounded-xl border bg-white',
+        'relative block aspect-[5/3] w-full overflow-hidden rounded-lg border bg-white sm:aspect-[4/3] sm:rounded-xl',
         active ? 'border-white/25 bg-white/10' : 'border-[#D98C5F]/30',
       ].join(' ')}
     >
@@ -47,8 +47,8 @@ function MenuPreviewVisual({ label, active = false }) {
         <span className="absolute h-[1px] w-full rotate-45 bg-current" />
         <span className="absolute h-[1px] w-full -rotate-45 bg-current" />
       </span>
-      <span className="absolute inset-x-3 bottom-3 rounded-lg bg-white/85 px-3 py-2 text-center shadow-sm">
-        <span className="block truncate text-xs font-extrabold uppercase tracking-wide text-[#3B2F2A]">
+      <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/85 px-2 py-1.5 text-center shadow-sm sm:inset-x-3 sm:bottom-3 sm:rounded-lg sm:px-3 sm:py-2">
+        <span className="block truncate text-[9px] font-extrabold uppercase tracking-wide text-[#3B2F2A] sm:text-xs">
           {label}
         </span>
       </span>
@@ -365,15 +365,15 @@ export default function NewOrderPage({ onBack, onCancel }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#FDFBF4] px-4 py-10 font-sans text-gray-700">
+    <main className="min-h-screen bg-[#FDFBF4] px-3 py-6 font-sans text-gray-700 sm:px-4 sm:py-10">
       <div className="mx-auto max-w-[90rem]">
-        <header className="mb-10 text-center">
-          <h1 className="text-6xl md:text-7xl font-bold text-gray-500/80 leading-tight">New Order</h1>
+        <header className="mb-6 text-center sm:mb-10">
+          <h1 className="text-5xl font-bold leading-tight text-gray-500/80 md:text-7xl">New Order</h1>
           {onCancel && (
             <button
               type="button"
               onClick={() => onCancel()}
-              className="mt-4 text-sm font-bold text-[#D98C5F] underline hover:opacity-90"
+              className="mt-3 rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-bold text-[#D98C5F] shadow-sm transition hover:bg-[#FFF7F1] sm:mt-4 sm:px-5 sm:py-2.5 sm:text-sm"
             >
               Back to orders
             </button>
@@ -392,7 +392,7 @@ export default function NewOrderPage({ onBack, onCancel }) {
             {menuError}
             <button
               type="button"
-              className="ml-2 text-xs font-bold underline text-[#D98C5F]"
+              className="ml-2 rounded-full border border-[#D98C5F]/40 bg-white px-3 py-1.5 text-xs font-bold text-[#D98C5F] shadow-sm transition hover:bg-[#FFF7F1]"
               onClick={() => void loadMenu()}
             >
               Retry
@@ -409,7 +409,7 @@ export default function NewOrderPage({ onBack, onCancel }) {
           </div>
         )}
 
-        <div className="grid gap-8 xl:grid-cols-[1fr_360px]">
+        <div className="grid gap-5 sm:gap-8 xl:grid-cols-[1fr_360px]">
 
           <section>
             {menuLoading && (
@@ -422,9 +422,9 @@ export default function NewOrderPage({ onBack, onCancel }) {
             )}
 
             {!menuLoading && items.length > 0 && (
-              <div className="mb-8 space-y-5">
+              <div className="mb-6 space-y-4 sm:mb-8 sm:space-y-5">
                 {activeRoot === 'All' ? (
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
                     {rootCategoryOptions.map((option) => {
                       const sample = option.sample
 
@@ -433,16 +433,16 @@ export default function NewOrderPage({ onBack, onCancel }) {
                           key={option.name}
                           type="button"
                           onClick={() => chooseRoot(option.name)}
-                          className="rounded-[28px] border border-[#D98C5F]/35 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60"
+                          className="rounded-2xl border border-[#D98C5F]/35 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60 sm:rounded-[28px] sm:p-4"
                         >
                           <MenuPreviewVisual label={sample?.name || option.name} />
-                          <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                          <span className="mt-3 block text-[9px] font-black uppercase tracking-[0.12em] text-[#D98C5F] sm:mt-4 sm:text-[10px] sm:tracking-[0.18em]">
                             Category
                           </span>
-                          <span className="mt-1 block break-words text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                          <span className="mt-1 block break-words text-base font-extrabold leading-tight text-[#3B2F2A] sm:text-2xl">
                             {option.name}
                           </span>
-                          <span className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#D98C5F]/20 bg-[#F7F0E6]/70 px-3 py-2 text-xs font-bold text-[#3B2F2A]/65">
+                          <span className="mt-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border border-[#D98C5F]/20 bg-[#F7F0E6]/70 px-2 py-1.5 text-[10px] font-bold text-[#3B2F2A]/65 sm:mt-3 sm:gap-2 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs">
                             <span>{option.count} item{option.count !== 1 ? 's' : ''}</span>
                             {sample ? <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span> : null}
                           </span>
@@ -451,19 +451,19 @@ export default function NewOrderPage({ onBack, onCancel }) {
                     })}
                   </div>
                 ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#D98C5F]/25 bg-white px-4 py-3 shadow-sm sm:gap-4 sm:px-5 sm:py-4">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
                         Selected category
                       </p>
-                      <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                      <p className="mt-1 text-xl font-extrabold leading-tight text-[#3B2F2A] sm:text-2xl">
                         {activeRoot}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={goBackToParents}
-                      className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                      className="rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1] sm:px-5 sm:py-2.5 sm:text-sm"
                     >
                       Back
                     </button>
@@ -471,7 +471,7 @@ export default function NewOrderPage({ onBack, onCancel }) {
                 )}
 
                 {subCategoryOptions.length > 0 && !activeSubCategory ? (
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
                     {subCategoryOptions.map((option) => {
                       const sample = option.sample
 
@@ -480,21 +480,21 @@ export default function NewOrderPage({ onBack, onCancel }) {
                           key={option.name}
                           type="button"
                           onClick={() => chooseSubCategory(option.name)}
-                          className="rounded-[28px] border border-[#D98C5F]/35 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60"
+                          className="rounded-2xl border border-[#D98C5F]/35 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60 sm:rounded-[28px] sm:p-4"
                         >
                           <MenuPreviewVisual label={sample?.name || option.name} />
-                          <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                          <span className="mt-3 block text-[9px] font-black uppercase tracking-[0.12em] text-[#D98C5F] sm:mt-4 sm:text-[10px] sm:tracking-[0.18em]">
                             {activeRoot}
                           </span>
-                          <span className="mt-1 block break-words text-lg font-extrabold leading-tight text-[#3B2F2A]">
+                          <span className="mt-1 block break-words text-sm font-extrabold leading-tight text-[#3B2F2A] sm:text-lg">
                             {option.name}
                           </span>
                           {sample ? (
-                            <span className="mt-3 block rounded-xl border border-[#D98C5F]/20 bg-white/75 px-3 py-2">
-                              <span className="block truncate text-xs font-bold text-[#3B2F2A]">
+                            <span className="mt-2 block rounded-lg border border-[#D98C5F]/20 bg-white/75 px-2 py-1.5 sm:mt-3 sm:rounded-xl sm:px-3 sm:py-2">
+                              <span className="block truncate text-[10px] font-bold text-[#3B2F2A] sm:text-xs">
                                 {sample.name}
                               </span>
-                              <span className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-[#3B2F2A]/60">
+                              <span className="mt-1 flex flex-wrap items-center justify-between gap-1 text-[10px] font-bold text-[#3B2F2A]/60 sm:gap-2 sm:text-[11px]">
                                 <span>{sample.size_label || `${option.count} item${option.count !== 1 ? 's' : ''}`}</span>
                                 <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span>
                               </span>
@@ -507,19 +507,19 @@ export default function NewOrderPage({ onBack, onCancel }) {
                 ) : null}
 
                 {subCategoryOptions.length > 0 && activeSubCategory ? (
-                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#D98C5F]/25 bg-white px-4 py-3 shadow-sm sm:gap-4 sm:px-5 sm:py-4">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
                         Selected type
                       </p>
-                      <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                      <p className="mt-1 text-xl font-extrabold leading-tight text-[#3B2F2A] sm:text-2xl">
                         {activeSubCategory}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={goBackToSubCategories}
-                      className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                      className="rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1] sm:px-5 sm:py-2.5 sm:text-sm"
                     >
                       Back
                     </button>
@@ -527,7 +527,7 @@ export default function NewOrderPage({ onBack, onCancel }) {
                 ) : null}
 
                 {menuNameOptions.length > 0 && (activeSubCategory || subCategories.length === 0) && !activeMenuName ? (
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
                     {menuNameOptions.map((option) => {
                       const sample = option.sample
 
@@ -536,17 +536,17 @@ export default function NewOrderPage({ onBack, onCancel }) {
                           key={option.name}
                           type="button"
                           onClick={() => chooseMenuName(option.name)}
-                          className="rounded-[28px] border border-black/15 bg-white p-4 text-left text-[#3B2F2A] shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60"
+                          className="rounded-2xl border border-black/15 bg-white p-3 text-left text-[#3B2F2A] shadow-sm transition hover:-translate-y-0.5 hover:border-[#D98C5F]/70 hover:bg-[#FFF7F1]/60 sm:rounded-[28px] sm:p-4"
                         >
                           <MenuPreviewVisual label={option.name} />
-                          <span className="mt-4 block text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
+                          <span className="mt-3 block text-[9px] font-black uppercase tracking-[0.12em] text-[#D98C5F] sm:mt-4 sm:text-[10px] sm:tracking-[0.18em]">
                             {activeSubCategory || activeRoot}
                           </span>
-                          <span className="mt-1 block break-words text-base font-extrabold leading-tight">
+                          <span className="mt-1 block break-words text-sm font-extrabold leading-tight sm:text-base">
                             {option.name}
                           </span>
                           {sample ? (
-                            <span className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#D98C5F]/20 bg-[#F7F0E6]/70 px-3 py-2 text-xs font-bold text-[#3B2F2A]/60">
+                            <span className="mt-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border border-[#D98C5F]/20 bg-[#F7F0E6]/70 px-2 py-1.5 text-[10px] font-bold text-[#3B2F2A]/60 sm:mt-3 sm:gap-2 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs">
                               <span>{option.count > 1 ? `${option.count} sizes` : sample.size_label || 'Single item'}</span>
                               <span className="text-[#D98C5F]">{formatPrice(sample.price)}</span>
                             </span>
@@ -558,32 +558,32 @@ export default function NewOrderPage({ onBack, onCancel }) {
                 ) : null}
 
                 {activeMenuName ? (
-                  <div className="rounded-2xl border border-[#D98C5F]/25 bg-white px-5 py-4 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="rounded-2xl border border-[#D98C5F]/25 bg-white px-4 py-3 shadow-sm sm:px-5 sm:py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D98C5F]">
                           Selected item
                         </p>
-                        <p className="mt-1 text-2xl font-extrabold leading-tight text-[#3B2F2A]">
+                        <p className="mt-1 text-xl font-extrabold leading-tight text-[#3B2F2A] sm:text-2xl">
                           {activeMenuName}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={goBackToMenuNames}
-                        className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1]"
+                        className="rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-extrabold text-[#3B2F2A] transition hover:bg-[#FFF7F1] sm:px-5 sm:py-2.5 sm:text-sm"
                       >
                         Back
                       </button>
                     </div>
 
                     {sizes.length > 1 ? (
-                      <div className="mt-4 flex flex-wrap gap-3">
+                      <div className="mt-3 flex flex-wrap gap-2 sm:mt-4 sm:gap-3">
                         <button
                           type="button"
                           onClick={() => chooseSize('')}
                           className={[
-                            'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
+                            'rounded-full border px-3 py-1.5 text-xs font-bold transition-colors sm:px-4 sm:py-2',
                             activeSize === ''
                               ? 'border-transparent bg-[#3B2F2A] text-white'
                               : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
@@ -600,7 +600,7 @@ export default function NewOrderPage({ onBack, onCancel }) {
                               type="button"
                               onClick={() => chooseSize(size)}
                               className={[
-                                'rounded-full border px-4 py-2 text-xs font-bold transition-colors',
+                                'rounded-full border px-3 py-1.5 text-xs font-bold transition-colors sm:px-4 sm:py-2',
                                 isActive
                                   ? 'border-transparent bg-[#3B2F2A] text-white'
                                   : 'border-black/20 bg-white text-[#3B2F2A] hover:bg-black/5',
@@ -617,24 +617,24 @@ export default function NewOrderPage({ onBack, onCancel }) {
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8">
               {visibleItems.map((item) => {
                 const count = qty[item.item_id] ?? 0
                 return (
                   <article
                     key={item.item_id}
-                    className="bg-white border border-gray-400/40 shadow-sm rounded-2xl p-4"
+                    className="rounded-xl border border-gray-400/40 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-4"
                   >
-                    <p className="text-center text-xs font-extrabold tracking-wide text-gray-700 uppercase">
+                    <p className="text-center text-[10px] font-extrabold uppercase tracking-wide text-gray-700 sm:text-xs">
                       {item.name}
                     </p>
                     {item.size_label && (
-                      <p className="mt-1 text-center text-[10px] font-bold uppercase text-gray-500">
+                      <p className="mt-1 text-center text-[9px] font-bold uppercase text-gray-500 sm:text-[10px]">
                         {item.size_label}
                       </p>
                     )}
 
-                    <div className="mt-3 aspect-square w-full rounded-xl border border-gray-300 bg-white relative overflow-hidden">
+                    <div className="mt-2 aspect-[5/4] w-full overflow-hidden rounded-lg border border-gray-300 bg-white relative sm:mt-3 sm:aspect-square sm:rounded-xl">
                       <div className="absolute inset-0 flex items-center justify-center opacity-20">
                         <div className="absolute w-full h-[1px] bg-black rotate-45" />
                         <div className="absolute w-full h-[1px] bg-black -rotate-45" />
@@ -643,27 +643,27 @@ export default function NewOrderPage({ onBack, onCancel }) {
 
                     <p className="mt-3 text-center text-sm font-extrabold text-gray-700">₱{item.price.toFixed(2)}</p>
                     {!item.has_recipe ? (
-                      <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-center text-[11px] font-bold text-amber-800">
+                      <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-center text-[10px] font-bold text-amber-800 sm:mt-3 sm:px-3 sm:py-2 sm:text-[11px]">
                         No recipe linked. Stock will not be deducted.
                       </p>
                     ) : null}
-                    <div className="mt-3 flex items-center justify-center gap-3">
+                    <div className="mt-2 flex items-center justify-center gap-2 sm:mt-3 sm:gap-3">
                       <button
                         type="button"
                         onClick={() => inc(item)}
                         disabled={!configured}
-                        className="grid h-8 w-10 place-items-center rounded-lg border border-[#D98C5F]/40 bg-[#D98C5F]/10 text-[#D98C5F] font-extrabold hover:bg-[#D98C5F]/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="grid h-8 w-9 place-items-center rounded-lg border border-[#D98C5F]/40 bg-[#D98C5F]/10 text-[#D98C5F] font-extrabold hover:bg-[#D98C5F]/15 disabled:cursor-not-allowed disabled:opacity-40 sm:w-10"
                         aria-label={`Add ${item.name}`}
                       >
                         +
                       </button>
 
-                      <span className="min-w-8 text-center font-bold text-gray-700">{count}</span>
+                      <span className="min-w-6 text-center text-sm font-bold text-gray-700 sm:min-w-8 sm:text-base">{count}</span>
 
                       <button
                         type="button"
                         onClick={() => dec(item.item_id)}
-                        className="grid h-8 w-10 place-items-center rounded-lg border border-gray-400/40 bg-black/5 text-gray-700 font-extrabold hover:bg-black/10"
+                        className="grid h-8 w-9 place-items-center rounded-lg border border-gray-400/40 bg-black/5 text-gray-700 font-extrabold hover:bg-black/10 sm:w-10"
                         aria-label={`Remove ${item.name}`}
                         disabled={count === 0}
                       >
@@ -676,7 +676,7 @@ export default function NewOrderPage({ onBack, onCancel }) {
             </div>
 
             {selectionPrompt ? (
-              <p className="mt-10 text-center text-sm font-semibold text-gray-500">
+              <p className="mt-6 text-center text-sm font-semibold text-gray-500 sm:mt-10">
                 {selectionPrompt}
               </p>
             ) : null}

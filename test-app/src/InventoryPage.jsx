@@ -1373,7 +1373,7 @@ export default function InventoryPage() {
                 refreshMenuIngredientsFromServer(),
               ]).finally(() => setLoading(false))
             }}
-            className="text-xs font-bold underline text-[#D98C5F]"
+            className="rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-bold text-[#D98C5F] shadow-sm transition hover:bg-[#FFF7F1]"
           >
             Retry fetch
           </button>
