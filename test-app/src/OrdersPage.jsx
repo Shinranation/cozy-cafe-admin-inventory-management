@@ -39,7 +39,7 @@ function parseRpcJsonArray(data) {
   return []
 }
 
-export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }) {
+export default function OrdersPage({ onNewOrder, onOpenReceipts, refreshKey = 0 }) {
   const configured = supabaseConfigured()
   const [orders, setOrders] = useState(/** @type {any[]} */ ([]))
   const [loading, setLoading] = useState(configured)
@@ -95,7 +95,7 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-16">
           <h1 className="text-6xl md:text-7xl font-bold text-gray-500/80 leading-tight">
-            Admin Dashboard <br /> Queue
+            Admin Dashboard <br /> Orders
           </h1>
         </header>
 
@@ -121,17 +121,17 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
             </button>
             <button
               type="button"
-              onClick={() => onOpenReceived?.()}
+              onClick={() => onOpenReceipts?.()}
               className="inline-flex items-center rounded-full border border-gray-400/40 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50"
             >
-              View received orders →
+              View receipts →
             </button>
           </div>
         </div>
 
         {!configured && (
           <p className="text-center text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-6">
-            Configure Supabase to load the order queue.
+            Configure Supabase to load orders.
           </p>
         )}
 
@@ -141,7 +141,7 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
           </p>
         )}
 
-        {loading && <p className="text-center text-gray-500 text-sm mb-6">Loading queue…</p>}
+        {loading && <p className="text-center text-gray-500 text-sm mb-6">Loading orders...</p>}
 
         {!loading && !error && orders.length === 0 && (
           <p className="text-center text-gray-600 text-sm mb-8">
@@ -183,7 +183,7 @@ export default function QueuePage({ onNewOrder, onOpenReceived, refreshKey = 0 }
                   disabled={busyOrderId === order.order_id || !configured}
                   className="shrink-0 rounded-full bg-[#3B2F2A] px-6 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
                 >
-                  {busyOrderId === order.order_id ? '…' : 'Received'}
+                  {busyOrderId === order.order_id ? '...' : 'Mark Received'}
                 </button>
               </div>
 

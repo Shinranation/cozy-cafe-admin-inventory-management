@@ -1,15 +1,16 @@
--- Cozy Cafe Revenue: allow admin app users to record inventory stock-in costs.
+-- The Cozzy Cup Cafe Revenue: allow admin app users to record inventory stock-in costs.
 -- Fixes expenses INSERT being blocked by older RLS policies that referenced
 -- a different admin helper.
 
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "expenses_select_authenticated" ON public.expenses;
-CREATE POLICY "expenses_select_authenticated"
+DROP POLICY IF EXISTS "expenses_select_admin_only" ON public.expenses;
+CREATE POLICY "expenses_select_admin_only"
 ON public.expenses
 FOR SELECT
 TO authenticated
-USING (true);
+USING (public.is_admin_app_user());
 
 DROP POLICY IF EXISTS "expenses_modify_admin_only" ON public.expenses;
 CREATE POLICY "expenses_modify_admin_only"

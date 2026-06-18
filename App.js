@@ -7,7 +7,7 @@ const CozyCoffeeMenu = () => {
     <div className="min-h-screen bg-[#F9F5EB] font-sans text-gray-700">
       {/* Navigation Bar */}
       <nav className="flex justify-between items-center px-8 py-4 bg-white border-b border-cyan-100">
-        <h1 className="text-2xl font-bold text-cyan-400">Cozy Coffee</h1>
+        <h1 className="text-3xl font-extrabold text-cyan-400">The Cozzy Cup Cafe</h1>
         <div className="flex items-center gap-8">
           <a href="#" className="text-orange-400 font-medium border-b-2 border-orange-400">Home</a>
           <a href="#" className="hover:text-cyan-400 transition">Menu</a>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import SoldItemsReportPage from './SoldItemsReportPage.jsx'
 import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
 
 function parseOrders(data) {
@@ -69,10 +70,10 @@ function slugifyForId(value) {
     .replace(/^-+|-+$/g, '') || 'unknown-date'
 }
 
-const DELETE_ACTION_PHRASE = 'DELETE RECEIPTS'
-const DELETE_SCOPE_PHRASE = 'DELETE SELECTED DATE'
+const DELETE_ACTION_PHRASE = 'VOID RECEIPTS'
+const DELETE_SCOPE_PHRASE = 'VOID SELECTED DATE'
 
-export default function ReceivedQueuePage({ onBackToPending }) {
+export default function ReceiptsPage({ onBackToOrders }) {
   const configured = supabaseConfigured()
   const [orders, setOrders] = useState(/** @type {any[]} */ ([]))
   const [loading, setLoading] = useState(true)
@@ -86,6 +87,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
   const [deleteEmail, setDeleteEmail] = useState('')
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteMessage, setDeleteMessage] = useState(/** @type {string | null} */ (null))
+  const [activeTab, setActiveTab] = useState('receipts')
 
   const load = useCallback(async () => {
     if (!supabase) return
@@ -101,8 +103,8 @@ export default function ReceivedQueuePage({ onBackToPending }) {
 
   useEffect(() => {
     if (!configured || !supabase) {
-      setLoading(false)
-      return
+      const timeoutId = window.setTimeout(() => setLoading(false), 0)
+      return () => window.clearTimeout(timeoutId)
     }
     let cancelled = false
     void (async () => {
@@ -152,21 +154,25 @@ export default function ReceivedQueuePage({ onBackToPending }) {
   }, [dateGroups, selectedDeleteDateIds])
 
   useEffect(() => {
-    if (dateGroups.length === 0) {
-      setSelectedDateId('')
-      setExpandedOrderId(null)
-      setSelectedDeleteDateIds([])
-      return
-    }
+    const timeoutId = window.setTimeout(() => {
+      if (dateGroups.length === 0) {
+        setSelectedDateId('')
+        setExpandedOrderId(null)
+        setSelectedDeleteDateIds([])
+        return
+      }
 
-    if (!dateGroups.some((group) => group.id === selectedDateId)) {
-      setSelectedDateId(dateGroups[0].id)
-      setExpandedOrderId(null)
-    }
+      if (!dateGroups.some((group) => group.id === selectedDateId)) {
+        setSelectedDateId(dateGroups[0].id)
+        setExpandedOrderId(null)
+      }
 
-    setSelectedDeleteDateIds((previousIds) =>
-      previousIds.filter((id) => dateGroups.some((group) => group.id === id)),
-    )
+      setSelectedDeleteDateIds((previousIds) =>
+        previousIds.filter((id) => dateGroups.some((group) => group.id === id)),
+      )
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
   }, [dateGroups, selectedDateId])
 
   function selectDate(id) {
@@ -229,7 +235,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
     setError(null)
     setDeleteMessage(null)
 
-    let totalDeletedOrders = 0
+    let totalVoidedOrders = 0
 
     for (const group of deleteDialog.groups) {
       const { data, error: deleteError } = await supabase.rpc('delete_received_orders_by_date', {
@@ -246,13 +252,13 @@ export default function ReceivedQueuePage({ onBackToPending }) {
         return
       }
 
-      totalDeletedOrders += Number(data?.deleted_orders) || 0
+      totalVoidedOrders += Number(data?.voided_orders ?? data?.deleted_orders) || 0
     }
 
     setDeleteBusy(false)
 
     setDeleteMessage(
-      `Deleted ${totalDeletedOrders} received order${totalDeletedOrders !== 1 ? 's' : ''} from ${deleteDialog.groups.length} date${deleteDialog.groups.length !== 1 ? 's' : ''}.`,
+      `Voided ${totalVoidedOrders} received order${totalVoidedOrders !== 1 ? 's' : ''} from ${deleteDialog.groups.length} date${deleteDialog.groups.length !== 1 ? 's' : ''}. Inventory deductions were restored when sale transactions were found.`,
     )
     setDeleteDialog(null)
     setDeleteInputs({ email: '', action: '', scope: '' })
@@ -278,17 +284,17 @@ export default function ReceivedQueuePage({ onBackToPending }) {
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-12">
           <h1 className="text-6xl md:text-7xl font-bold text-gray-500/80 leading-tight">
-            Admin Dashboard <br /> Received Orders
+            Admin Dashboard <br /> Receipts
           </h1>
         </header>
 
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4 px-2">
           <button
             type="button"
-            onClick={() => onBackToPending?.()}
+            onClick={() => onBackToOrders?.()}
             className="inline-flex items-center rounded-full border border-gray-400/40 bg-white px-6 py-3 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
-            Back to pending queue
+            Back to orders
           </button>
           <button
             type="button"
@@ -303,6 +309,37 @@ export default function ReceivedQueuePage({ onBackToPending }) {
           </button>
         </div>
 
+        <div className="mb-8 flex flex-wrap gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setActiveTab('receipts')}
+            className={[
+              'rounded-xl px-5 py-2.5 text-sm font-extrabold transition',
+              activeTab === 'receipts'
+                ? 'bg-[#3B2F2A] text-white'
+                : 'bg-white text-gray-600 hover:bg-[#FFF7F1]',
+            ].join(' ')}
+          >
+            Receipts
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('soldItems')}
+            className={[
+              'rounded-xl px-5 py-2.5 text-sm font-extrabold transition',
+              activeTab === 'soldItems'
+                ? 'bg-[#3B2F2A] text-white'
+                : 'bg-white text-gray-600 hover:bg-[#FFF7F1]',
+            ].join(' ')}
+          >
+            Sold Items Report
+          </button>
+        </div>
+
+        {activeTab === 'soldItems' ? (
+          <SoldItemsReportPage embedded />
+        ) : (
+          <>
         {!configured && (
           <p className="text-center text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
             Configure Supabase URL and anon key to load received orders.
@@ -324,9 +361,9 @@ export default function ReceivedQueuePage({ onBackToPending }) {
         {deleteDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
-              <h3 className="text-lg font-bold text-gray-900">Delete Receipt History</h3>
+              <h3 className="text-lg font-bold text-gray-900">Void Receipt History</h3>
               <p className="mt-2 text-sm text-gray-600">
-                This removes {deleteDialog.orderCount} received receipt record{deleteDialog.orderCount !== 1 ? 's' : ''}, order items, and payments from {deleteDialog.groups.length} selected date{deleteDialog.groups.length !== 1 ? 's' : ''}. It does not cancel sales or restore inventory quantities.
+                This voids {deleteDialog.orderCount} received receipt record{deleteDialog.orderCount !== 1 ? 's' : ''} from {deleteDialog.groups.length} selected date{deleteDialog.groups.length !== 1 ? 's' : ''}. The original receipt rows stay in the database, and matching sale inventory deductions are restored.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {deleteDialog.groups.map((group) => (
@@ -353,7 +390,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
                 </label>
 
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                  Type DELETE RECEIPTS
+                  Type VOID RECEIPTS
                   <input
                     type="text"
                     value={deleteInputs.action}
@@ -365,7 +402,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
                 </label>
 
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                  Type DELETE SELECTED DATE
+                  Type VOID SELECTED DATE
                   <input
                     type="text"
                     value={deleteInputs.scope}
@@ -392,7 +429,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
                   disabled={deleteBusy || !deleteReady}
                   className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
                 >
-                {deleteBusy ? 'Deleting...' : 'Delete Receipt History'}
+                {deleteBusy ? 'Voiding...' : 'Void Receipt History'}
                 </button>
               </div>
             </div>
@@ -412,7 +449,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
             </p>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs font-semibold text-gray-500">
-                {deleteDateMode ? 'Delete mode: choose one or more receipt dates, then confirm deletion.' : 'Choose a date to view receipts.'}
+                {deleteDateMode ? 'Void mode: choose one or more receipt dates, then confirm voiding.' : 'Choose a date to view receipts.'}
               </p>
               <div className="flex flex-wrap gap-2">
                 {deleteDateMode ? (
@@ -422,7 +459,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
                     disabled={selectedDeleteDateGroups.length === 0}
                     className="rounded-full bg-red-600 px-4 py-2 text-xs font-extrabold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Delete Selected Receipts ({selectedDeleteDateGroups.length})
+                    Void Selected Receipts ({selectedDeleteDateGroups.length})
                   </button>
                 ) : null}
                 <button
@@ -439,7 +476,7 @@ export default function ReceivedQueuePage({ onBackToPending }) {
                       : 'border border-red-200 bg-white text-red-700 hover:bg-red-50',
                   ].join(' ')}
                 >
-                  {deleteDateMode ? 'Cancel Delete' : 'Delete Receipt Dates'}
+                  {deleteDateMode ? 'Cancel Void' : 'Void Receipt Dates'}
                 </button>
               </div>
             </div>
@@ -596,6 +633,8 @@ export default function ReceivedQueuePage({ onBackToPending }) {
             </section>
           ) : null}
         </div>
+          </>
+        )}
       </div>
     </main>
   )

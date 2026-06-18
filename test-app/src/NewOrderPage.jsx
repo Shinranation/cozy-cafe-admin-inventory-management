@@ -56,7 +56,7 @@ function MenuPreviewVisual({ label, active = false }) {
   )
 }
 
-export default function NewOrder({ onBack, onCancel }) {
+export default function NewOrderPage({ onBack, onCancel }) {
   const configured = supabaseConfigured()
   const [items, setItems] = useState(/** @type {MenuItemRow[]} */ ([]))
   const [menuLoading, setMenuLoading] = useState(configured)
@@ -375,7 +375,7 @@ export default function NewOrder({ onBack, onCancel }) {
               onClick={() => onCancel()}
               className="mt-4 text-sm font-bold text-[#D98C5F] underline hover:opacity-90"
             >
-              ← Back to queue
+              Back to orders
             </button>
           )}
         </header>

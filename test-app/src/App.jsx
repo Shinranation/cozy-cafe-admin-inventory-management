@@ -1,22 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
-import Customer from './customer.jsx'
-import InventoryDashboard from './InventoryDashboard.jsx'
-import RevenuePage from './RevenuePage.jsx'
-import QueuePage from './QueuePage.jsx'
-import ReceivedQueuePage from './ReceivedQueuePage.jsx'
-import NewOrder from './NewOrder.jsx'
+import MenuPage from './MenuPage.jsx'
+import InventoryPage from './InventoryPage.jsx'
+import SalesPage from './SalesPage.jsx'
+import OrdersPage from './OrdersPage.jsx'
+import ReceiptsPage from './ReceiptsPage.jsx'
+import NewOrderPage from './NewOrderPage.jsx'
+import ActivityLogsPage from './ActivityLogsPage.jsx'
 import Login from './Login.jsx'
 import Signup from './Signup.jsx'
 import { supabase } from './lib/supabaseClient.js'
 
-/** @typedef {'customer' | 'inventory' | 'revenue' | 'queue' | 'queueReceived' | 'newOrder' | 'login' | 'signup'} AppPage */
+/** @typedef {'menu' | 'inventory' | 'sales' | 'orders' | 'receipts' | 'newOrder' | 'activityLogs' | 'login' | 'signup'} AppPage */
 
 export default function App() {
-  const [page, setPage] = useState('customer')
-  const [queueRefreshKey, setQueueRefreshKey] = useState(0)
+  const [page, setPage] = useState('menu')
+  const [ordersRefreshKey, setOrdersRefreshKey] = useState(0)
   const [session, setSession] = useState(null)
   const [adminSignedIn, setAdminSignedIn] = useState(false)
+  const [navMenuOpen, setNavMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const navMenuRef = useRef(null)
   const userMenuRef = useRef(null)
 
   const signedInUser = session?.user ?? null
@@ -47,8 +50,8 @@ export default function App() {
   // CHECK ADMIN ROLE
   useEffect(() => {
     if (!supabase || !signedInUser) {
-      setAdminSignedIn(false)
-      return
+      const timeoutId = window.setTimeout(() => setAdminSignedIn(false), 0)
+      return () => window.clearTimeout(timeoutId)
     }
 
     let alive = true
@@ -77,6 +80,10 @@ export default function App() {
 
   useEffect(() => {
     function handlePointerDown(event) {
+      if (!navMenuRef.current?.contains(event.target)) {
+        setNavMenuOpen(false)
+      }
+
       if (!userMenuRef.current?.contains(event.target)) {
         setUserMenuOpen(false)
       }
@@ -92,36 +99,44 @@ export default function App() {
   function handleUserButtonClick() {
     if (!signedInUser) {
       setPage('login')
+      setNavMenuOpen(false)
       return
     }
 
     setUserMenuOpen((open) => !open)
   }
 
+  function handleNavigate(nextPage) {
+    setPage(nextPage)
+    setNavMenuOpen(false)
+    setUserMenuOpen(false)
+  }
+
   async function handleSignOut() {
     if (!supabase) return
     await supabase.auth.signOut()
+    setNavMenuOpen(false)
     setUserMenuOpen(false)
-    setPage('customer')
+    setPage('menu')
   }
 
   return (
     <div className="min-h-screen bg-[#FDF8F1] flex flex-col">
 
       {/* NAVBAR */}
-      <nav className="flex justify-between items-center px-6 py-4 bg-white border-b">
-        <h1 className="font-bold text-[#5BC0DE]">
-          Cozy Coffee
+      <nav className="relative flex items-center justify-between gap-4 border-b bg-white px-6 py-4">
+        <h1 className="min-w-0 text-xl font-extrabold leading-tight text-[#5BC0DE] sm:text-2xl md:text-3xl">
+          The Cozzy Cup Cafe
         </h1>
 
-        <div className="flex gap-3 items-center">
+        <div className="hidden flex-wrap items-center justify-end gap-3 md:flex">
 
           {/* PUBLIC PAGE */}
           <button
             className={navBtn}
-            onClick={() => setPage('customer')}
+            onClick={() => handleNavigate('menu')}
           >
-            Customer
+            Menu
           </button>
 
           {/* ADMIN PAGES (only show if admin) */}
@@ -129,44 +144,51 @@ export default function App() {
             <>
               <button
                 className={navBtn}
-                onClick={() => setPage('inventory')}
+                onClick={() => handleNavigate('inventory')}
               >
                 Inventory
               </button>
 
               <button
                 className={navBtn}
-                onClick={() => setPage('revenue')}
+                onClick={() => handleNavigate('sales')}
               >
-                Revenue
+                Sales
               </button>
 
               <button
                 className={navBtn}
-                onClick={() => setPage('queue')}
+                onClick={() => handleNavigate('orders')}
               >
-                Queue
+                Orders
               </button>
 
               <button
                 className={navBtn}
-                onClick={() => setPage('queueReceived')}
+                onClick={() => handleNavigate('receipts')}
               >
-                Received
+                Receipts
+              </button>
+
+              <button
+                className={navBtn}
+                onClick={() => handleNavigate('activityLogs')}
+              >
+                Activity Logs
               </button>
             </>
           )}
 
           <div className="relative" ref={userMenuRef}>
-          {/* LOGIN BUTTON (ALWAYS VISIBLE) */}
-          <button
-            type="button"
-            className="grid h-9 w-9 place-items-center rounded-full border border-gray-200 bg-white text-lg shadow-sm transition hover:bg-gray-50"
-            onClick={handleUserButtonClick}
-            title={signedInUser?.email ?? 'Login'}
-            aria-haspopup={signedInUser ? 'menu' : undefined}
-            aria-expanded={signedInUser ? userMenuOpen : undefined}
-          >
+            {/* LOGIN BUTTON (ALWAYS VISIBLE) */}
+            <button
+              type="button"
+              className="grid h-9 w-9 place-items-center rounded-full border border-gray-200 bg-white text-lg shadow-sm transition hover:bg-gray-50"
+              onClick={handleUserButtonClick}
+              title={signedInUser?.email ?? 'Login'}
+              aria-haspopup={signedInUser ? 'menu' : undefined}
+              aria-expanded={signedInUser ? userMenuOpen : undefined}
+            >
             👤
           </button>
 
@@ -194,41 +216,133 @@ export default function App() {
             )}
           </div>
         </div>
+
+        <div className="flex items-center gap-3 md:hidden" ref={navMenuRef}>
+          <button
+            type="button"
+            onClick={() => setNavMenuOpen((open) => !open)}
+            className="grid h-10 w-10 place-items-center rounded-lg border border-gray-200 bg-white shadow-sm transition hover:bg-gray-50"
+            aria-label="Open navigation menu"
+            aria-expanded={navMenuOpen}
+          >
+            <span className="flex flex-col gap-1.5">
+              <span className="h-0.5 w-5 rounded bg-gray-800" />
+              <span className="h-0.5 w-5 rounded bg-gray-800" />
+              <span className="h-0.5 w-5 rounded bg-gray-800" />
+            </span>
+            </button>
+
+          {navMenuOpen && (
+            <div className="absolute right-4 top-[calc(100%+0.5rem)] z-50 w-64 rounded-xl border border-gray-200 bg-white p-2 text-sm shadow-lg">
+              <button
+                type="button"
+                className="w-full rounded-lg px-3 py-2 text-left font-semibold text-gray-800 transition hover:bg-[#FFF7F1]"
+                onClick={() => handleNavigate('menu')}
+              >
+                Menu
+              </button>
+
+              {adminSignedIn && (
+                <>
+                  <button
+                    type="button"
+                    className="w-full rounded-lg px-3 py-2 text-left font-semibold text-gray-800 transition hover:bg-[#FFF7F1]"
+                    onClick={() => handleNavigate('inventory')}
+                  >
+                    Inventory
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full rounded-lg px-3 py-2 text-left font-semibold text-gray-800 transition hover:bg-[#FFF7F1]"
+                    onClick={() => handleNavigate('sales')}
+                  >
+                    Sales
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full rounded-lg px-3 py-2 text-left font-semibold text-gray-800 transition hover:bg-[#FFF7F1]"
+                    onClick={() => handleNavigate('orders')}
+                  >
+                    Orders
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full rounded-lg px-3 py-2 text-left font-semibold text-gray-800 transition hover:bg-[#FFF7F1]"
+                    onClick={() => handleNavigate('receipts')}
+                  >
+                    Receipts
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full rounded-lg px-3 py-2 text-left font-semibold text-gray-800 transition hover:bg-[#FFF7F1]"
+                    onClick={() => handleNavigate('activityLogs')}
+                  >
+                    Activity Logs
+                  </button>
+                </>
+              )}
+
+              <div className="mt-2 border-t border-gray-100 pt-2">
+                <button
+                  type="button"
+                  className="w-full rounded-lg px-3 py-2 text-left font-semibold text-gray-800 transition hover:bg-[#FFF7F1]"
+                  onClick={() => {
+                    if (!signedInUser) handleUserButtonClick()
+                  }}
+                >
+                  {signedInUser ? signedInUser.email : 'Login'}
+                </button>
+
+                {signedInUser && (
+                  <button
+                    type="button"
+                    className="w-full rounded-lg px-3 py-2 text-left font-semibold text-red-600 transition hover:bg-red-50"
+                    onClick={handleSignOut}
+                  >
+                    Sign out
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* PAGE ROUTING */}
-      {page === 'customer' && <Customer />}
+      {page === 'menu' && <MenuPage />}
 
-      {page === 'inventory' && adminSignedIn && <InventoryDashboard />}
+      {page === 'inventory' && adminSignedIn && <InventoryPage />}
 
-      {page === 'revenue' && adminSignedIn && <RevenuePage />}
+      {page === 'sales' && adminSignedIn && <SalesPage />}
 
-      {page === 'queue' && adminSignedIn && (
-        <QueuePage
-          refreshKey={queueRefreshKey}
+      {page === 'orders' && adminSignedIn && (
+        <OrdersPage
+          refreshKey={ordersRefreshKey}
           onNewOrder={() => setPage('newOrder')}
-          onOpenReceived={() => setPage('queueReceived')}
+          onOpenReceipts={() => setPage('receipts')}
         />
       )}
 
-      {page === 'queueReceived' && adminSignedIn && (
-        <ReceivedQueuePage onBackToPending={() => setPage('queue')} />
+      {page === 'receipts' && adminSignedIn && (
+        <ReceiptsPage onBackToOrders={() => setPage('orders')} />
       )}
 
+      {page === 'activityLogs' && adminSignedIn && <ActivityLogsPage />}
+
       {page === 'newOrder' && adminSignedIn && (
-        <NewOrder
-          onCancel={() => setPage('queue')}
+        <NewOrderPage
+          onCancel={() => setPage('orders')}
           onBack={() => {
-            setQueueRefreshKey((k) => k + 1)
-            setPage('queue')
+            setOrdersRefreshKey((k) => k + 1)
+            setPage('orders')
           }}
         />
       )}
 
       {page === 'login' && (
         <Login
-          onClose={() => setPage('customer')}
-          onAdminAccess={() => setPage('customer')}
+          onClose={() => setPage('menu')}
+          onAdminAccess={() => setPage('menu')}
           onGoToSignup={() => setPage('signup')}
           adminSignedIn={adminSignedIn}
           signedInEmail={signedInUser?.email ?? null}
@@ -238,7 +352,7 @@ export default function App() {
       {page === 'signup' && (
         <Signup
           onBackToLogin={() => setPage('login')}
-          onClose={() => setPage('customer')}
+          onClose={() => setPage('menu')}
         />
       )}
     </div>

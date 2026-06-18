@@ -1,4 +1,4 @@
--- Cozy Cafe POS: schema fixes, menu↔inventory link, order_items→orders, RPCs for confirm + received.
+-- The Cozzy Cup Cafe POS: schema fixes, menu↔inventory link, order_items→orders, RPCs for confirm + received.
 -- Run in Supabase SQL Editor (or supabase db push) once. Review TRUNCATE blocks if you already have production data.
 
 -- =============================================================================

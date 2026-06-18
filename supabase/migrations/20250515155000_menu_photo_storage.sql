@@ -1,4 +1,4 @@
--- Cozy Cafe Menu: public storage bucket for menu item photos.
+-- The Cozzy Cup Cafe Menu: public storage bucket for menu item photos.
 
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('menu-photos', 'menu-photos', true)

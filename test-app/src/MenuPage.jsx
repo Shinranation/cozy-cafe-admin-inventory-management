@@ -38,24 +38,6 @@ function normalizeMenuRows(rows) {
     )
 }
 
-function mergeMenuRows(primaryRows, fallbackRows) {
-  const rowsById = new Map()
-
-  for (const row of fallbackRows) {
-    rowsById.set(row.id, row)
-  }
-
-  for (const row of primaryRows) {
-    rowsById.set(row.id, row)
-  }
-
-  return [...rowsById.values()].sort((a, b) => {
-    const categoryOrder = a.category.localeCompare(b.category)
-    if (categoryOrder !== 0) return categoryOrder
-    return a.name.localeCompare(b.name)
-  })
-}
-
 function splitCategory(category) {
   return String(category || '')
     .split('/')
@@ -70,10 +52,6 @@ function rootCategory(item) {
 function subCategory(item) {
   const parts = splitCategory(item.category)
   return parts.length > 1 ? parts.slice(1).join(' / ') : ''
-}
-
-function displayCategory(item) {
-  return subCategory(item) || rootCategory(item)
 }
 
 function formatPrice(price) {
@@ -116,7 +94,7 @@ function MenuPreviewVisual({ label, imageUrl = '', active = false }) {
   )
 }
 
-export default function Customer() {
+export default function MenuPage() {
   const configured = supabaseConfigured()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(configured)
@@ -127,30 +105,17 @@ export default function Customer() {
     if (!supabase) return
     setFetchError(null)
 
-    const [directResult, rpcResult] = await Promise.all([
-      supabase
-        .from('menu')
-        .select('item_id,name,size_label,description,price,category,image_url,availability_status')
-        .eq('availability_status', 'available')
-        .order('category')
-        .order('name'),
-      supabase.rpc('get_menu_public'),
-    ])
-
-    const directItems = directResult.error ? [] : normalizeMenuRows(directResult.data ?? [])
-    const rpcItems = rpcResult.error ? [] : normalizeMenuRows(parseRpcJsonArray(rpcResult.data))
-    const nextItems = mergeMenuRows(directItems, rpcItems)
+    const { data, error } = await supabase.rpc('get_menu_public')
+    const nextItems = normalizeMenuRows(parseRpcJsonArray(data))
 
     if (nextItems.length > 0) {
       setItems(nextItems)
       return
     }
 
-    if (directResult.error || rpcResult.error) {
+    if (error) {
       setFetchError(
-        directResult.error?.message ||
-          rpcResult.error?.message ||
-          'Could not load menu items.',
+        error.message || 'Could not load menu items.',
       )
       setItems([])
       return
@@ -270,11 +235,6 @@ export default function Customer() {
       }))
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [activeRoot, activeSubCategory, items])
-
-  const drinkNames = useMemo(
-    () => drinkOptions.map((option) => option.name),
-    [drinkOptions],
-  )
 
   const sizes = useMemo(() => {
     if (!activeDrinkName) return []

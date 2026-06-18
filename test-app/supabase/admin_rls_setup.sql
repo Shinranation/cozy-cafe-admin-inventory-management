@@ -41,11 +41,12 @@ with check (true);
 
 -- 4) inventory policies
 drop policy if exists "inventory_select_authenticated" on public.inventory;
-create policy "inventory_select_authenticated"
+drop policy if exists "inventory_select_admin_only" on public.inventory;
+create policy "inventory_select_admin_only"
 on public.inventory
 for select
 to authenticated
-using (true);
+using (public.is_admin(auth.uid()));
 
 drop policy if exists "inventory_modify_admin_only" on public.inventory;
 create policy "inventory_modify_admin_only"
@@ -57,11 +58,12 @@ with check (public.is_admin(auth.uid()));
 
 -- 5) inventory_transactions policies
 drop policy if exists "inventory_tx_read_authenticated" on public.inventory_transactions;
-create policy "inventory_tx_read_authenticated"
+drop policy if exists "inventory_tx_read_admin_only" on public.inventory_transactions;
+create policy "inventory_tx_read_admin_only"
 on public.inventory_transactions
 for select
 to authenticated
-using (true);
+using (public.is_admin(auth.uid()));
 
 drop policy if exists "inventory_tx_insert_admin_only" on public.inventory_transactions;
 create policy "inventory_tx_insert_admin_only"

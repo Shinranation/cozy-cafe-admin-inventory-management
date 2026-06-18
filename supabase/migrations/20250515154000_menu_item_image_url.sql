@@ -1,4 +1,4 @@
--- Cozy Cafe Menu: optional image URL for customer-facing menu item photos.
+-- The Cozzy Cup Cafe Menu: optional image URL for customer-facing menu item photos.
 
 ALTER TABLE public.menu
 ADD COLUMN IF NOT EXISTS image_url text;

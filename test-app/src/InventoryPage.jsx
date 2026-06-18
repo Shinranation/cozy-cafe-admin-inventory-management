@@ -5,7 +5,7 @@ import ArchivedInventorySection from './inventory/ArchivedInventorySection.jsx'
 import IngredientInventorySection from './inventory/IngredientInventorySection.jsx'
 import InventoryModals from './inventory/InventoryModals.jsx'
 import MenuItemsSection from './inventory/MenuItemsSection.jsx'
-import { insertExpenseRow, insertInventoryTransactionRow } from './inventory/supabaseInventoryApi.js'
+import { applyInventoryStockMovement, createInventoryIngredient } from './inventory/supabaseInventoryApi.js'
 import {
   mergeRealtimeRows,
   normalizeInventoryRow,
@@ -79,7 +79,7 @@ function storagePathFromMenuPhotoUrl(url) {
   }
 }
 
-export default function InventoryDashboard() {
+export default function InventoryPage() {
   /** @type {[InventoryRow[], React.Dispatch<React.SetStateAction<InventoryRow[]>>]} */
   const [rows, setRows] = useState([])
   /** @type {[MenuRow[], React.Dispatch<React.SetStateAction<MenuRow[]>>]} */
@@ -997,20 +997,21 @@ export default function InventoryDashboard() {
 
     setAddingIngredient(true)
 
-    const { data: inserted, error: insertErr } = await supabase
-      .from('inventory')
-      .insert({
+    const { data, error } = await createInventoryIngredient(supabase, {
         name,
         classification: classification || null,
         current_quantity: quantity,
         unit_of_measure: unit,
         low_stock: lowStock,
+        total_cost: totalCost,
+        reference_id: TX_REFERENCE_ID,
+        cashier_id: TX_CASHIER_ID,
       })
-      .select('*')
-      .single()
 
-    if (insertErr || !inserted) {
-      setActionError(insertErr?.message ?? 'Could not add ingredient.')
+    const inserted = data?.inventory
+
+    if (error || !inserted) {
+      setActionError(error?.message ?? 'Could not add ingredient.')
       setAddingIngredient(false)
       return
     }
@@ -1018,35 +1019,8 @@ export default function InventoryDashboard() {
     const row = normalizeInventoryRow(inserted)
     setRows((prev) => sortById([...prev.filter((item) => item.ingredient_id !== row.ingredient_id), row]))
 
-    let followUpError = null
-
-    if (quantity > 0) {
-      followUpError = await insertInventoryTransactionRow(supabase, {
-        ingredient_id: row.ingredient_id,
-        actualDelta: quantity,
-        transaction_type: 'stock_in',
-        reason: 'Initial ingredient entry',
-        reference_id: TX_REFERENCE_ID,
-        cashier_id: TX_CASHIER_ID,
-      })
-    }
-
-    if (!followUpError && totalCost > 0) {
-      followUpError = await insertExpenseRow(supabase, {
-        ingredientName: name,
-        amount: totalCost,
-        cashier_id: TX_CASHIER_ID,
-      })
-    }
-
-    if (followUpError) {
-      setActionError(
-        `Ingredient added, but extra logging failed: ${followUpError.message}. Check INSERT permissions for inventory_transactions/expenses and VITE_TX_CASHIER_ID.`,
-      )
-    } else {
-      setActionMessage(`${name} added to inventory.`)
-      setNewIngredient(emptyNewIngredient)
-    }
+    setActionMessage(`${name} added to inventory.`)
+    setNewIngredient(emptyNewIngredient)
 
     await refreshFromServer()
     setAddingIngredient(false)
@@ -1156,89 +1130,40 @@ export default function InventoryDashboard() {
       setActionMessage(null)
       setBusyIngredientId(row.ingredient_id)
 
-      const { data: fresh, error: readErr } = await supabase
-        .from('inventory')
-        .select('current_quantity')
-        .eq('ingredient_id', row.ingredient_id)
-        .single()
-
-      if (readErr || fresh == null) {
-        setActionError(readErr?.message ?? 'Could not read current quantity.')
-        setBusyIngredientId(null)
-        return false
-      }
-
-      const current = Number(fresh.current_quantity)
-      const newQty = current + signedDelta
-      const actualDelta = newQty - current
-
-      if (newQty < 0) {
-        setActionError(`${row.name} only has ${current} ${row.unit_of_measure}. Stock out cannot make inventory negative.`)
-        setBusyIngredientId(null)
-        return false
-      }
-
-      const { error: upErr } = await supabase
-        .from('inventory')
-        .update({ current_quantity: newQty })
-        .eq('ingredient_id', row.ingredient_id)
-
-      if (upErr) {
-        setActionError(upErr.message)
-        setBusyIngredientId(null)
-        return false
-      }
-
-      // Reflect quantity change immediately in UI (realtime events can lag/miss).
-      setRows((prev) =>
-        sortById(
-          prev.map((r) =>
-            r.ingredient_id === row.ingredient_id
-              ? { ...r, current_quantity: newQty }
-              : r,
-          ),
-        ),
-      )
-
-      const txErr = await insertInventoryTransactionRow(supabase, {
+      const { data, error } = await applyInventoryStockMovement(supabase, {
         ingredient_id: row.ingredient_id,
-        actualDelta,
+        quantity_change: signedDelta,
         transaction_type: mode === 'in' ? 'stock_in' : 'stock_out',
         reason: 'Admin inventory adjustment',
         reference_id: TX_REFERENCE_ID,
         cashier_id: TX_CASHIER_ID,
+        expense_amount: mode === 'in' ? stockInCost : 0,
       })
 
-      if (txErr) {
-        setActionError(
-          `Quantity saved, but audit log insert failed: ${txErr.message}. Check RLS INSERT and ensure VITE_TX_REFERENCE_ID / VITE_TX_CASHIER_ID point to valid IDs for your schema.`,
-        )
-        await refreshFromServer()
-      } else {
-        let expenseErr = null
-        if (mode === 'in' && stockInCost > 0) {
-          expenseErr = await insertExpenseRow(supabase, {
-            ingredientName: row.name,
-            amount: stockInCost,
-            cashier_id: TX_CASHIER_ID,
-          })
-        }
-
-        if (expenseErr) {
-          setActionError(
-            `Quantity saved, but expense insert failed: ${expenseErr.message}. Check RLS INSERT on expenses and ensure VITE_TX_CASHIER_ID points to a valid cashier_id.`,
-          )
-        } else {
-          setActionError(null)
-          setActionMessage(`${row.name} inventory updated.`)
-          if (mode === 'in') {
-            setCostInputs((prev) => ({ ...prev, [row.ingredient_id]: '' }))
-          }
-        }
-
-        // Keep local state in sync even when realtime isn't delivering updates.
-        void refreshFromServer()
+      if (error || !data?.inventory) {
+        setActionError(error?.message ?? 'Could not update inventory.')
+        setBusyIngredientId(null)
+        return false
       }
+
+      const updatedRow = normalizeInventoryRow(data.inventory)
+
+      setRows((prev) =>
+        sortById(
+          prev.map((r) =>
+            r.ingredient_id === updatedRow.ingredient_id ? updatedRow : r,
+          ),
+        ),
+      )
+
+      setActionError(null)
+      setActionMessage(`${row.name} inventory updated.`)
+      if (mode === 'in') {
+        setCostInputs((prev) => ({ ...prev, [row.ingredient_id]: '' }))
+      }
+
+      // Keep local state in sync even when realtime isn't delivering updates.
+      void refreshFromServer()
 
       setBusyIngredientId(null)
       setStockMovementDialog(null)

@@ -166,10 +166,6 @@ function buildIngredientCostRows(expenses, year, monthName) {
   return [...byIngredient.values()].sort((a, b) => b.totalCost - a.totalCost)
 }
 
-function menuItemDisplayName(item) {
-  return [item?.name, item?.size_label].filter(Boolean).join(' - ') || 'Unknown Menu Item'
-}
-
 function menuItemBaseName(item) {
   return String(item?.name ?? '').trim() || 'Unknown Menu Item'
 }
@@ -208,7 +204,7 @@ function buildBestSellingRows(orders, year, monthName) {
   )
 }
 
-export default function AdminDashboardCosts() {
+export default function SalesPage() {
   const configured = supabaseConfigured()
   const currentDate = new Date()
   const currentYear = currentDate.getFullYear()
@@ -246,7 +242,7 @@ export default function AdminDashboardCosts() {
     if (receivedOrdersResult.error) {
       setFetchError(
         receivedOrdersResult.error?.message ||
-          'Could not load revenue data.',
+          'Could not load sales data.',
       )
       setOrders([])
       setExpenses([])
@@ -263,7 +259,7 @@ export default function AdminDashboardCosts() {
     setYear((previousYear) => (nextYears.includes(previousYear) ? previousYear : nextYears[0]))
 
     if (expensesResult.error) {
-      setFetchError(`Revenue loaded, but costs could not load: ${expensesResult.error.message}`)
+      setFetchError(`Sales loaded, but costs could not load: ${expensesResult.error.message}`)
     }
 
     setLoading(false)
@@ -320,7 +316,7 @@ export default function AdminDashboardCosts() {
 
     const deletedOrders = Number(data?.deleted_orders) || 0
     const deletedExpenses = Number(data?.deleted_expenses) || 0
-    setResetMessage(`Revenue reset complete. Deleted ${deletedOrders} orders and ${deletedExpenses} expenses.`)
+    setResetMessage(`Sales reset complete. Deleted ${deletedOrders} orders and ${deletedExpenses} expenses.`)
     setResetDialogOpen(false)
     setResetInputs({ email: '', action: '', scope: '' })
     await fetchFinancialData()
@@ -392,7 +388,7 @@ export default function AdminDashboardCosts() {
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-12">
           <h1 className="text-6xl md:text-7xl font-bold text-gray-500/80 leading-tight">
-            Admin Dashboard <br /> Costs
+            Admin Dashboard <br /> Sales
           </h1>
         </header>
 
@@ -424,7 +420,7 @@ export default function AdminDashboardCosts() {
         {resetDialogOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
-              <h3 className="text-lg font-bold text-gray-900">Reset Revenue Data</h3>
+              <h3 className="text-lg font-bold text-gray-900">Reset Sales Data</h3>
               <p className="mt-2 text-sm text-gray-600">
                 This clears orders, order items, payments, and expenses for reporting cleanup. It does not cancel sales or restore inventory quantities.
               </p>
@@ -482,7 +478,7 @@ export default function AdminDashboardCosts() {
                   disabled={resetBusy || !resetReady}
                   className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
                 >
-                  {resetBusy ? 'Resetting...' : 'Reset Revenue'}
+                  {resetBusy ? 'Resetting...' : 'Reset Sales'}
                 </button>
               </div>
             </div>
@@ -503,7 +499,7 @@ export default function AdminDashboardCosts() {
                 value={year}
                 onChange={(e) => setYear(safeNumber(e.target.value, currentYear))}
                 className="w-28 rounded-xl border border-[#D98C5F]/30 px-3 py-2 text-sm font-semibold outline-none"
-                aria-label="Revenue year"
+                aria-label="Sales year"
               >
                 {availableYears.map((availableYear) => (
                   <option key={availableYear} value={availableYear}>
@@ -533,7 +529,7 @@ export default function AdminDashboardCosts() {
           <div className="grid gap-4 md:grid-cols-3 mb-6">
             <div className="rounded-2xl border border-[#D98C5F]/30 p-5">
               <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
-                Year Revenue
+                Year Sales
               </p>
               <p className="mt-2 text-2xl font-bold text-green-700">{formatCurrency(yearRevenue)}</p>
             </div>
@@ -601,7 +597,7 @@ export default function AdminDashboardCosts() {
                         style={{ height: `${revenueHeight}px` }}
                         className="w-5 bg-green-600 rounded-t-md"
                       />
-                      <span className="text-[10px] mt-1">Revenue</span>
+                      <span className="text-[10px] mt-1">Sales</span>
                     </div>
 
                     <div className="flex flex-col items-center">
@@ -620,7 +616,7 @@ export default function AdminDashboardCosts() {
                     </div>
 
                     <div className="flex justify-between gap-3">
-                      <span>Revenue</span>
+                      <span>Sales</span>
                       <span>{formatCurrency(data.totalRevenue)}</span>
                     </div>
 
@@ -669,7 +665,7 @@ export default function AdminDashboardCosts() {
             </div>
             <div className="rounded-2xl border border-[#D98C5F]/30 bg-[#FDFBF4] p-5">
               <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
-                Best-Seller Revenue
+                Best-Seller Sales
               </p>
               <p className="mt-2 text-3xl font-bold text-green-700">
                 {formatCurrency(selectedBestSellerRevenue)}
@@ -796,7 +792,7 @@ export default function AdminDashboardCosts() {
 
           <div className="space-y-10">
             <div>
-              <h3 className="text-2xl font-semibold mb-5">Weekly Revenue</h3>
+              <h3 className="text-2xl font-semibold mb-5">Weekly Sales</h3>
 
               <div className="space-y-4">
                 {currentMonthData.weeklyRevenue.map((revenue, index) => (
@@ -836,7 +832,7 @@ export default function AdminDashboardCosts() {
 
             <div className="mt-10 border-t border-[#D98C5F]/20 pt-8 space-y-5 text-2xl">
               <div className="flex justify-between gap-4">
-                <span>Total Revenue</span>
+                <span>Total Sales</span>
 
                 <span className="font-bold text-green-700">
                   {formatCurrency(currentMonthData.totalRevenue)}

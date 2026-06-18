@@ -1,4 +1,4 @@
--- Cozy Cafe Menu: optional product size / variant label.
+-- The Cozzy Cup Cafe Menu: optional product size / variant label.
 -- Use this for sizes like 12oz, 16oz, 190ml, 290ml instead of making size categories.
 
 ALTER TABLE public.menu

@@ -1,4 +1,4 @@
--- Cozy Cafe Inventory: permanently delete already-archived ingredients/menu items.
+-- The Cozzy Cup Cafe Inventory: permanently delete already-archived ingredients/menu items.
 -- This is intentionally limited to archived rows only.
 
 CREATE OR REPLACE FUNCTION public.permanent_delete_archived_item(
