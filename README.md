@@ -158,7 +158,7 @@ http://localhost:5173
 `test-app/vite.config.js` reads env values from the repo root, so create or update:
 
 ```txt
-../.env
+.env
 ```
 
 Use your Supabase project values:
@@ -182,9 +182,10 @@ Run SQL in this order:
 3. Run `test-app/supabase/menu_and_expenses_rls.sql`.
 4. Run `supabase/migrations/20250515154000_menu_item_image_url.sql`.
 5. Run `supabase/migrations/20250515155000_menu_photo_storage.sql`.
-6. Run `supabase/migrations/20250515161000_harden_orders_inventory_and_reports.sql` last.
+6. Run `supabase/migrations/20250515161000_harden_orders_inventory_and_reports.sql`.
+7. Run `supabase/migrations/20250515162000_void_specific_received_receipts.sql` to enable reverting or deleting individual receipts.
 
-The final `20250515161000...sql` file is the current one-copy repair SQL. If you accidentally run an older migration later, rerun `20250515161000_harden_orders_inventory_and_reports.sql` again last.
+The `20250515161000...sql` file is the current one-copy repair SQL. Run `20250515162000_void_specific_received_receipts.sql` after it when testing the individual receipt revert/delete feature.
 
 ## Base Schema
 
@@ -410,6 +411,7 @@ cancel_pending_order
 confirm_pos_order
 create_inventory_ingredient
 delete_received_orders_by_date
+delete_received_orders_by_ids
 get_menu_public
 is_admin
 is_admin_app_user
@@ -419,6 +421,7 @@ list_sold_items_report
 mark_order_received
 reset_revenue_data
 void_received_orders_by_date
+void_received_orders_by_ids
 ```
 
 The frontend expects this Supabase Storage bucket:
@@ -433,6 +436,8 @@ menu-photos
 - `mark_order_received` completes the sale, deducts linked recipe ingredients, creates the payment row, and marks the order as received.
 - `cancel_pending_order` voids a pending order.
 - Received receipt cleanup voids received orders and restores matching sale inventory deductions.
+- Individual receipt reverting marks selected received orders as voided, restores matching inventory deductions, and removes those orders from Sales totals and sold-items reports while keeping history.
+- Individual receipt deleting permanently removes selected receipt rows after restoring matching inventory deductions.
 - Sold-items reports count only received orders.
 
 Menu items can exist without recipe links, but those items will not deduct stock until recipe ingredients are linked in Inventory.

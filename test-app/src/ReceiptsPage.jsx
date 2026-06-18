@@ -70,8 +70,26 @@ function slugifyForId(value) {
     .replace(/^-+|-+$/g, '') || 'unknown-date'
 }
 
-const DELETE_ACTION_PHRASE = 'VOID RECEIPTS'
-const DELETE_SCOPE_PHRASE = 'VOID SELECTED DATE'
+const RECEIPT_ACTIONS = {
+  revert: {
+    actionPhrase: 'REVERT RECEIPTS',
+    scopePhrase: 'REVERT SELECTED RECEIPTS',
+    busyLabel: 'Reverting...',
+    confirmLabel: 'Revert Receipts',
+    dialogTitle: 'Revert Receipt History',
+    modeLabel: 'Revert Selected',
+    rpc: 'void_received_orders_by_ids',
+  },
+  delete: {
+    actionPhrase: 'DELETE RECEIPTS',
+    scopePhrase: 'DELETE SELECTED RECEIPTS',
+    busyLabel: 'Deleting...',
+    confirmLabel: 'Delete Receipts',
+    dialogTitle: 'Delete Receipt History',
+    modeLabel: 'Delete Selected',
+    rpc: 'delete_received_orders_by_ids',
+  },
+}
 
 export default function ReceiptsPage({ onBackToOrders }) {
   const configured = supabaseConfigured()
@@ -80,8 +98,8 @@ export default function ReceiptsPage({ onBackToOrders }) {
   const [error, setError] = useState(/** @type {string | null} */ (null))
   const [selectedDateId, setSelectedDateId] = useState('')
   const [expandedOrderId, setExpandedOrderId] = useState(/** @type {number | null} */ (null))
-  const [deleteDateMode, setDeleteDateMode] = useState(false)
-  const [selectedDeleteDateIds, setSelectedDeleteDateIds] = useState(/** @type {string[]} */ ([]))
+  const [deleteReceiptMode, setDeleteReceiptMode] = useState(false)
+  const [selectedDeleteOrderIds, setSelectedDeleteOrderIds] = useState(/** @type {number[]} */ ([]))
   const [deleteDialog, setDeleteDialog] = useState(/** @type {any | null} */ (null))
   const [deleteInputs, setDeleteInputs] = useState({ email: '', action: '', scope: '' })
   const [deleteEmail, setDeleteEmail] = useState('')
@@ -148,17 +166,17 @@ export default function ReceiptsPage({ onBackToOrders }) {
     return dateGroups.find((group) => group.id === selectedDateId) ?? dateGroups[0] ?? null
   }, [dateGroups, selectedDateId])
 
-  const selectedDeleteDateGroups = useMemo(() => {
-    const selectedIds = new Set(selectedDeleteDateIds)
-    return dateGroups.filter((group) => selectedIds.has(group.id))
-  }, [dateGroups, selectedDeleteDateIds])
+  const selectedDeleteOrders = useMemo(() => {
+    const selectedIds = new Set(selectedDeleteOrderIds.map((id) => Number(id)))
+    return orders.filter((order) => selectedIds.has(Number(order.order_id)))
+  }, [orders, selectedDeleteOrderIds])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       if (dateGroups.length === 0) {
         setSelectedDateId('')
         setExpandedOrderId(null)
-        setSelectedDeleteDateIds([])
+        setSelectedDeleteOrderIds([])
         return
       }
 
@@ -167,22 +185,22 @@ export default function ReceiptsPage({ onBackToOrders }) {
         setExpandedOrderId(null)
       }
 
-      setSelectedDeleteDateIds((previousIds) =>
-        previousIds.filter((id) => dateGroups.some((group) => group.id === id)),
+      setSelectedDeleteOrderIds((previousIds) =>
+        previousIds.filter((id) => orders.some((order) => Number(order.order_id) === Number(id))),
       )
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [dateGroups, selectedDateId])
+  }, [dateGroups, orders, selectedDateId])
 
   function selectDate(id) {
     setSelectedDateId(id)
     setExpandedOrderId(null)
   }
 
-  async function openDeleteDialog(groups) {
-    const validGroups = groups.filter((group) => group?.startAt && group?.endAt)
-    if (!supabase || validGroups.length === 0) return
+  async function openDeleteDialog(receiptOrders, actionType = 'revert') {
+    const validOrders = receiptOrders.filter((order) => Number.isFinite(Number(order?.order_id)))
+    if (!supabase || validOrders.length === 0 || !RECEIPT_ACTIONS[actionType]) return
 
     setError(null)
     setDeleteMessage(null)
@@ -196,74 +214,82 @@ export default function ReceiptsPage({ onBackToOrders }) {
 
     setDeleteEmail(data.user.email)
     setDeleteDialog({
-      groups: validGroups,
-      name: validGroups.map((group) => group.name).join(', '),
-      orderCount: validGroups.reduce((sum, group) => sum + group.orders.length, 0),
+      orders: validOrders,
+      orderIds: validOrders.map((order) => Number(order.order_id)),
+      orderCount: validOrders.length,
+      actionType,
     })
   }
 
   function handleDateButton(group) {
-    if (deleteDateMode) {
-      setSelectedDeleteDateIds((previousIds) =>
-        previousIds.includes(group.id)
-          ? previousIds.filter((id) => id !== group.id)
-          : [...previousIds, group.id],
-      )
-      return
-    }
-
     selectDate(group.id)
   }
 
-  function openSelectedDeleteDialog() {
-    void openDeleteDialog(selectedDeleteDateGroups)
+  function openSelectedDeleteDialog(actionType) {
+    void openDeleteDialog(selectedDeleteOrders, actionType)
+  }
+
+  function toggleReceiptForVoid(orderId) {
+    const numericId = Number(orderId)
+    if (!Number.isFinite(numericId)) return
+
+    setSelectedDeleteOrderIds((previousIds) =>
+      previousIds.includes(numericId)
+        ? previousIds.filter((id) => id !== numericId)
+        : [...previousIds, numericId],
+    )
   }
 
   function handleDeleteInputChange(field, value) {
     setDeleteInputs((prev) => ({ ...prev, [field]: value }))
   }
 
+  const receiptActionConfig = RECEIPT_ACTIONS[deleteDialog?.actionType ?? 'revert']
+
   const deleteReady =
     deleteInputs.email.trim().toLowerCase() === deleteEmail.trim().toLowerCase() &&
-    deleteInputs.action.trim() === DELETE_ACTION_PHRASE &&
-    deleteInputs.scope.trim() === DELETE_SCOPE_PHRASE
+    deleteInputs.action.trim() === receiptActionConfig.actionPhrase &&
+    deleteInputs.scope.trim() === receiptActionConfig.scopePhrase
 
-  async function handleDeleteDate() {
+  async function handleDeleteReceipts() {
     if (!supabase || !deleteDialog || !deleteReady) return
 
     setDeleteBusy(true)
     setError(null)
     setDeleteMessage(null)
 
-    let totalVoidedOrders = 0
+    const actionConfig = RECEIPT_ACTIONS[deleteDialog.actionType] ?? RECEIPT_ACTIONS.revert
+    const { data, error: deleteError } = await supabase.rpc(actionConfig.rpc, {
+      p_order_ids: deleteDialog.orderIds,
+      p_confirm_email: deleteInputs.email.trim(),
+      p_confirm_action: deleteInputs.action.trim(),
+      p_confirm_scope: deleteInputs.scope.trim(),
+    })
 
-    for (const group of deleteDialog.groups) {
-      const { data, error: deleteError } = await supabase.rpc('delete_received_orders_by_date', {
-        p_start_at: group.startAt,
-        p_end_at: group.endAt,
-        p_confirm_email: deleteInputs.email.trim(),
-        p_confirm_action: deleteInputs.action.trim(),
-        p_confirm_scope: deleteInputs.scope.trim(),
-      })
-
-      if (deleteError) {
-        setDeleteBusy(false)
-        setError(deleteError.message)
-        return
-      }
-
-      totalVoidedOrders += Number(data?.voided_orders ?? data?.deleted_orders) || 0
+    if (deleteError) {
+      setDeleteBusy(false)
+      setError(deleteError.message)
+      return
     }
+
+    const totalVoidedOrders = Number(data?.voided_orders ?? data?.deleted_orders) || 0
+    const removedSalesAmount = Number(data?.voided_sales_amount ?? data?.deleted_sales_amount) || 0
 
     setDeleteBusy(false)
 
-    setDeleteMessage(
-      `Voided ${totalVoidedOrders} received order${totalVoidedOrders !== 1 ? 's' : ''} from ${deleteDialog.groups.length} date${deleteDialog.groups.length !== 1 ? 's' : ''}. Inventory deductions were restored when sale transactions were found.`,
-    )
+    if (deleteDialog.actionType === 'delete') {
+      setDeleteMessage(
+        `Deleted ${totalVoidedOrders} specific receipt${totalVoidedOrders !== 1 ? 's' : ''}. ${formatPeso(removedSalesAmount)} was removed from Sales totals, and inventory deductions were restored when sale transactions were found.`,
+      )
+    } else {
+      setDeleteMessage(
+        `Reverted ${totalVoidedOrders} specific receipt${totalVoidedOrders !== 1 ? 's' : ''}. ${formatPeso(removedSalesAmount)} was removed from Sales totals, and inventory deductions were restored when sale transactions were found.`,
+      )
+    }
     setDeleteDialog(null)
     setDeleteInputs({ email: '', action: '', scope: '' })
-    setSelectedDeleteDateIds([])
-    setDeleteDateMode(false)
+    setSelectedDeleteOrderIds([])
+    setDeleteReceiptMode(false)
     setExpandedOrderId(null)
     await load()
   }
@@ -363,17 +389,19 @@ export default function ReceiptsPage({ onBackToOrders }) {
         {deleteDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
-              <h3 className="text-lg font-bold text-gray-900">Void Receipt History</h3>
+              <h3 className="text-lg font-bold text-gray-900">{receiptActionConfig.dialogTitle}</h3>
               <p className="mt-2 text-sm text-gray-600">
-                This voids {deleteDialog.orderCount} received receipt record{deleteDialog.orderCount !== 1 ? 's' : ''} from {deleteDialog.groups.length} selected date{deleteDialog.groups.length !== 1 ? 's' : ''}. The original receipt rows stay in the database, and matching sale inventory deductions are restored.
+                {deleteDialog.actionType === 'delete'
+                  ? `This permanently deletes ${deleteDialog.orderCount} selected receipt record${deleteDialog.orderCount !== 1 ? 's' : ''}. Matching sale inventory deductions are restored before the receipt rows are removed.`
+                  : `This reverts ${deleteDialog.orderCount} selected receipt record${deleteDialog.orderCount !== 1 ? 's' : ''}. The original receipt rows stay in the database as voided, and matching sale inventory deductions are restored.`}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {deleteDialog.groups.map((group) => (
+                {deleteDialog.orders.map((order) => (
                   <span
-                    key={group.id}
+                    key={order.order_id}
                     className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-bold text-red-700"
                   >
-                    {group.name} ({group.orders.length})
+                    Order #{String(order.order_id).padStart(3, '0')} - {dateTimeLabel(order.created_at)}
                   </span>
                 ))}
               </div>
@@ -392,24 +420,24 @@ export default function ReceiptsPage({ onBackToOrders }) {
                 </label>
 
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                  Type VOID RECEIPTS
+                  Type {receiptActionConfig.actionPhrase}
                   <input
                     type="text"
                     value={deleteInputs.action}
                     onChange={(e) => handleDeleteInputChange('action', e.target.value)}
-                    placeholder={DELETE_ACTION_PHRASE}
+                    placeholder={receiptActionConfig.actionPhrase}
                     className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
                     disabled={deleteBusy}
                   />
                 </label>
 
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                  Type VOID SELECTED DATE
+                  Type {receiptActionConfig.scopePhrase}
                   <input
                     type="text"
                     value={deleteInputs.scope}
                     onChange={(e) => handleDeleteInputChange('scope', e.target.value)}
-                    placeholder={DELETE_SCOPE_PHRASE}
+                    placeholder={receiptActionConfig.scopePhrase}
                     className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
                     disabled={deleteBusy}
                   />
@@ -427,11 +455,16 @@ export default function ReceiptsPage({ onBackToOrders }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleDeleteDate()}
+                  onClick={() => void handleDeleteReceipts()}
                   disabled={deleteBusy || !deleteReady}
-                  className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                  className={[
+                    'rounded-full px-4 py-2 text-sm font-bold text-white disabled:opacity-50',
+                    deleteDialog.actionType === 'delete'
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-[#D98C5F] hover:opacity-90',
+                  ].join(' ')}
                 >
-                {deleteBusy ? 'Voiding...' : 'Void Receipt History'}
+                {deleteBusy ? receiptActionConfig.busyLabel : receiptActionConfig.confirmLabel}
                 </button>
               </div>
             </div>
@@ -451,41 +484,49 @@ export default function ReceiptsPage({ onBackToOrders }) {
             </p>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
               <p className="text-xs font-semibold text-gray-500">
-                {deleteDateMode ? 'Void mode: choose one or more receipt dates, then confirm voiding.' : 'Choose a date to view receipts.'}
+                {deleteReceiptMode ? 'Manage mode: choose specific receipt rows below, then revert or delete them.' : 'Choose a date to view receipts.'}
               </p>
               <div className="flex flex-wrap gap-2">
-                {deleteDateMode ? (
-                  <button
-                    type="button"
-                    onClick={openSelectedDeleteDialog}
-                    disabled={selectedDeleteDateGroups.length === 0}
-                    className="rounded-full bg-red-600 px-3 py-1.5 text-[10px] font-extrabold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4 sm:py-2 sm:text-xs"
-                  >
-                    Void Selected Receipts ({selectedDeleteDateGroups.length})
-                  </button>
+                {deleteReceiptMode ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openSelectedDeleteDialog('revert')}
+                      disabled={selectedDeleteOrders.length === 0}
+                      className="rounded-full bg-[#D98C5F] px-3 py-1.5 text-[10px] font-extrabold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4 sm:py-2 sm:text-xs"
+                    >
+                      Revert Selected ({selectedDeleteOrders.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openSelectedDeleteDialog('delete')}
+                      disabled={selectedDeleteOrders.length === 0}
+                      className="rounded-full bg-red-600 px-3 py-1.5 text-[10px] font-extrabold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4 sm:py-2 sm:text-xs"
+                    >
+                      Delete Selected ({selectedDeleteOrders.length})
+                    </button>
+                  </>
                 ) : null}
                 <button
                   type="button"
                   onClick={() => {
-                    setDeleteDateMode((prev) => !prev)
+                    setDeleteReceiptMode((prev) => !prev)
                     setDeleteDialog(null)
-                    setSelectedDeleteDateIds([])
+                    setSelectedDeleteOrderIds([])
                   }}
                   className={[
                     'rounded-full px-3 py-1.5 text-[10px] font-extrabold transition sm:px-4 sm:py-2 sm:text-xs',
-                    deleteDateMode
+                    deleteReceiptMode
                       ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                       : 'border border-red-200 bg-white text-red-700 hover:bg-red-50',
                   ].join(' ')}
                 >
-                  {deleteDateMode ? 'Cancel Void' : 'Void Receipt Dates'}
+                  {deleteReceiptMode ? 'Cancel Manage' : 'Manage Specific Receipts'}
                 </button>
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {dateGroups.map((group) => {
-                const selectedForDelete = selectedDeleteDateIds.includes(group.id)
-
                 return (
                 <button
                   key={group.id}
@@ -493,11 +534,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
                   onClick={() => handleDateButton(group)}
                   className={[
                     'rounded-full border px-2.5 py-1 text-[10px] font-bold transition sm:px-3 sm:py-1.5 sm:text-xs',
-                    deleteDateMode
-                      ? selectedForDelete
-                        ? 'border-transparent bg-red-600 text-white'
-                        : 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
-                      : selectedDateGroup?.id === group.id
+                    selectedDateGroup?.id === group.id
                       ? 'border-transparent bg-[#3B2F2A] text-white'
                       : 'border-[#D98C5F]/50 bg-[#FAF8F5] text-gray-700 hover:border-[#D98C5F] hover:bg-white',
                   ].join(' ')}
@@ -522,41 +559,60 @@ export default function ReceiptsPage({ onBackToOrders }) {
 
               {selectedDateGroup.orders.map((order) => {
                 const isExpanded = expandedOrderId === order.order_id
+                const selectedForVoid = selectedDeleteOrderIds.includes(Number(order.order_id))
 
                 return (
                 <section key={order.order_id} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedOrderId(isExpanded ? null : order.order_id)}
-                    className="flex w-full flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#D98C5F]/60 hover:bg-[#FFF7F1]/60 sm:gap-4 sm:px-5 sm:py-4"
-                    aria-expanded={isExpanded}
-                  >
-                    <span className="rounded-full bg-[#D9C5B2] px-4 py-1.5 text-xs font-extrabold text-gray-700 sm:px-5 sm:py-2 sm:text-sm">
-                      Order #{String(order.order_id).padStart(3, '0')}
-                    </span>
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-emerald-900 sm:px-3 sm:text-[10px]">
-                      Received
-                    </span>
-                    <span className="text-xs font-bold text-gray-500">
-                      {timeLabel(order.created_at)}
-                    </span>
-                    <span className="min-w-[10rem] flex-1">
-                      <span className="block text-sm font-extrabold text-gray-800 sm:text-base">
-                        {order.customer_display}
+                  <div className="flex items-stretch gap-2">
+                    {deleteReceiptMode ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleReceiptForVoid(order.order_id)}
+                        className={[
+                          'w-20 shrink-0 rounded-2xl border px-2 text-[10px] font-extrabold uppercase tracking-wide transition sm:w-24 sm:text-xs',
+                          selectedForVoid
+                            ? 'border-transparent bg-red-600 text-white shadow-sm'
+                            : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100',
+                        ].join(' ')}
+                        aria-pressed={selectedForVoid}
+                      >
+                        {selectedForVoid ? 'Selected' : 'Select'}
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => setExpandedOrderId(isExpanded ? null : order.order_id)}
+                      className="flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#D98C5F]/60 hover:bg-[#FFF7F1]/60 sm:gap-4 sm:px-5 sm:py-4"
+                      aria-expanded={isExpanded}
+                    >
+                      <span className="rounded-full bg-[#D9C5B2] px-4 py-1.5 text-xs font-extrabold text-gray-700 sm:px-5 sm:py-2 sm:text-sm">
+                        Order #{String(order.order_id).padStart(3, '0')}
                       </span>
-                      <span className="mt-1 block truncate text-xs font-semibold text-gray-500">
-                        {orderItemSummary(order)}
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-emerald-900 sm:px-3 sm:text-[10px]">
+                        Received
                       </span>
-                    </span>
-                    <span className="text-right">
-                      <span className="block text-lg font-extrabold text-[#D98C5F]">
-                        {formatPeso(order.total_amount)}
+                      <span className="text-xs font-bold text-gray-500">
+                        {timeLabel(order.created_at)}
                       </span>
-                      <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400">
-                        {isExpanded ? 'Hide receipt' : 'View receipt'}
+                      <span className="min-w-[10rem] flex-1">
+                        <span className="block text-sm font-extrabold text-gray-800 sm:text-base">
+                          {order.customer_display}
+                        </span>
+                        <span className="mt-1 block truncate text-xs font-semibold text-gray-500">
+                          {orderItemSummary(order)}
+                        </span>
                       </span>
-                    </span>
-                  </button>
+                      <span className="text-right">
+                        <span className="block text-lg font-extrabold text-[#D98C5F]">
+                          {formatPeso(order.total_amount)}
+                        </span>
+                        <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                          {isExpanded ? 'Hide receipt' : 'View receipt'}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
 
                   {isExpanded ? (
                   <div className="mt-3 rounded-2xl border border-[#D98C5F]/40 bg-white p-4 shadow-sm sm:rounded-[2rem] sm:border-2 sm:p-6">
