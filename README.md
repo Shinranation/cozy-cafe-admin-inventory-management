@@ -2,6 +2,132 @@
 
 React/Vite admin app for The Cozzy Cup Cafe POS, inventory, menu management, orders, receipts, sold-items reports, sales, and admin activity logs. Supabase provides Auth, Postgres, Storage, and Row Level Security.
 
+## Live Site
+
+https://cozy-cafe-admin.vercel.app
+
+## Demo Video
+
+Watch the project demo here:
+
+[The Cozzy Cup Cafe Admin Demo](https://drive.google.com/file/d/1UxkDy-wD0IoRQep8cs4I-Llp-McwrHDK/view?usp=sharing)
+
+## Features
+
+- Google login with admin-only access
+- Menu item and category management
+- Inventory tracking with stock-in and stock-out
+- Recipe ingredient links for automatic stock deduction
+- POS order creation
+- Pending orders and received receipts
+- Sold-items report by day or custom date range
+- Activity logs with signed-in admin email tracking
+- Menu photo upload through Supabase Storage
+- Mobile-friendly admin interface
+
+## Screenshots
+
+Screenshots are stored in `docs/screenshots`.
+
+### Login
+
+![Login screenshot](docs/screenshots/login.png)
+
+### Public Menu
+
+![Promotions menu screenshot](docs/screenshots/promotions-menu.png)
+
+![Public menu item selection screenshot](docs/screenshots/public-menu-item-selection.png)
+
+### Inventory Management
+
+![Inventory ingredients screenshot](docs/screenshots/inventory-ingredients.png)
+
+![Inventory menu items screenshot](docs/screenshots/inventory-menu-items.png)
+
+### Orders
+
+![Empty orders screenshot](docs/screenshots/orders-empty.png)
+
+![New order cart screenshot](docs/screenshots/new-order-cart.png)
+
+![Pending orders screenshot](docs/screenshots/orders-pending.png)
+
+### Receipts
+
+![Receipts screenshot](docs/screenshots/receipts.png)
+
+### Sold Items Report
+
+![Sold items report screenshot](docs/screenshots/sold-items-report.png)
+
+![Sold items print or save PDF screenshot](docs/screenshots/sold-items-print-save-pdf.png)
+
+### Sales
+
+![Sales dashboard screenshot](docs/screenshots/sales-dashboard.png)
+
+![Sales monthly overview screenshot](docs/screenshots/sales-monthly-overview.png)
+
+![Sales receipt report screenshot](docs/screenshots/sales-receipt-report.png)
+
+![Sales weekly breakdown screenshot](docs/screenshots/sales-weekly-breakdown.png)
+
+### Activity Logs
+
+![Activity logs screenshot](docs/screenshots/activity-logs.png)
+
+## Tech Stack
+
+- React
+- Vite
+- Tailwind CSS
+- Supabase Auth
+- Supabase PostgreSQL
+- Supabase Storage
+- Supabase Row Level Security
+- Google OAuth login
+- Vercel deployment
+
+## Deployment
+
+The app is deployed on Vercel with these settings:
+
+- Root Directory: `test-app`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Install Command: `npm install`
+
+Required Vercel environment variables:
+
+```env
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_KEY=your-anon-public-key
+VITE_TX_REFERENCE_ID=1
+VITE_TX_CASHIER_ID=1
+```
+
+## Admin Handoff
+
+To add a new admin, ask the user to log in once with Google from the live site. After their account appears in Supabase Authentication, run:
+
+```sql
+insert into public.user_roles (user_id, role)
+select id, 'admin'
+from auth.users
+where lower(email) = lower('admin-email@example.com')
+on conflict (user_id) do update
+set role = excluded.role;
+```
+
+Then ask the user to sign out and sign in again.
+
+## Notes
+
+- Google login must be opened in Chrome, Safari, or another real browser. It will not work inside Messenger/Facebook in-app browser because Google blocks embedded user agents.
+- Menu items without linked recipe ingredients will not deduct inventory stock.
+- Admin access only works after the user logs in once and their user ID is added to `public.user_roles`.
+
 ## Prerequisites
 
 - Node.js 18 or newer
