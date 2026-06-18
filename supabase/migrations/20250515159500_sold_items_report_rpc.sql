@@ -5,10 +5,10 @@
 -- The final hardening migration uses order item snapshots instead.
 --
 -- Run:
--- supabase/migrations/20250515161000_harden_orders_inventory_and_reports.sql
+-- supabase/migrations/20250515161000_one_copy_app_repair.sql
 
 DO $$
 BEGIN
-  RAISE NOTICE '20250515159500 is deprecated. Run 20250515161000_harden_orders_inventory_and_reports.sql for the snapshot-safe sold-items report.';
+  RAISE NOTICE '20250515159500 is deprecated. Run 20250515161000_one_copy_app_repair.sql for the snapshot-safe sold-items report.';
 END;
 $$;

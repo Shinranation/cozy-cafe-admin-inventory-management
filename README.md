@@ -91,6 +91,15 @@ Screenshots are stored in `docs/screenshots`.
 - Google OAuth login
 - Vercel deployment
 
+## Credits
+
+This project started as a collaborative academic draft with early contributions from:
+
+- **Eve Nunal** - frontend development
+- **Ed Baguio** - backend development
+
+The current version was continued, completed, deployed, documented, and maintained by **Jayrad Adeva**, handling the full-stack implementation across the React/Vite frontend, Supabase database and authentication setup, inventory workflows, receipt management, reporting tools, activity logs, deployment, and client-ready refinements.
+
 ## Deployment
 
 The app is deployed on Vercel with these settings:
@@ -178,14 +187,11 @@ VITE_TX_CASHIER_ID=1
 Run SQL in this order:
 
 1. Run the **Base Schema** from this README.
-2. Run `test-app/supabase/admin_rls_setup.sql`.
-3. Run `test-app/supabase/menu_and_expenses_rls.sql`.
-4. Run `supabase/migrations/20250515154000_menu_item_image_url.sql`.
-5. Run `supabase/migrations/20250515155000_menu_photo_storage.sql`.
-6. Run `supabase/migrations/20250515161000_harden_orders_inventory_and_reports.sql`.
-7. Run `supabase/migrations/20250515162000_void_specific_received_receipts.sql` to enable reverting or deleting individual receipts.
+2. Run `supabase/migrations/20250515161000_one_copy_app_repair.sql`.
 
-The `20250515161000...sql` file is the current one-copy repair SQL. Run `20250515162000_void_specific_received_receipts.sql` after it when testing the individual receipt revert/delete feature.
+`20250515161000_one_copy_app_repair.sql` is the current one-copy app repair SQL. It includes the current RPC functions, admin helpers, RLS policies, menu photo storage setup, activity logs, receipt revert/delete actions, inventory protections, and report fixes.
+
+Older migration files are kept only as historical/deprecated project records. For current setup, use the Base Schema plus `20250515161000_one_copy_app_repair.sql`.
 
 ## Base Schema
 
@@ -419,6 +425,7 @@ list_pending_orders_with_items
 list_received_orders_with_items
 list_sold_items_report
 mark_order_received
+permanent_delete_archived_item
 reset_revenue_data
 void_received_orders_by_date
 void_received_orders_by_ids

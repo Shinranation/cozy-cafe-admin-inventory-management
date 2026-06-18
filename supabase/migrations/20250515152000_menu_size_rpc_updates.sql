@@ -1,7 +1,7 @@
 -- The Cozzy Cup Cafe Menu: include optional size_label in the public menu RPC.
 --
 -- Queue and received-order RPCs now live in:
--- supabase/migrations/20250515161000_harden_orders_inventory_and_reports.sql
+-- supabase/migrations/20250515161000_one_copy_app_repair.sql
 
 CREATE OR REPLACE FUNCTION public.get_menu_public()
 RETURNS jsonb
@@ -41,6 +41,6 @@ GRANT EXECUTE ON FUNCTION public.get_menu_public() TO authenticated;
 
 DO $$
 BEGIN
-  RAISE NOTICE '20250515152000 only updates get_menu_public. Run 20250515161000_harden_orders_inventory_and_reports.sql for queue and received-order RPCs.';
+  RAISE NOTICE '20250515152000 only updates get_menu_public. Run 20250515161000_one_copy_app_repair.sql for queue and received-order RPCs.';
 END;
 $$;

@@ -5,10 +5,10 @@
 -- which voids active orders and restores sale inventory deductions instead.
 --
 -- Run:
--- supabase/migrations/20250515161000_harden_orders_inventory_and_reports.sql
+-- supabase/migrations/20250515161000_one_copy_app_repair.sql
 
 DO $$
 BEGIN
-  RAISE NOTICE '20250515144000 is deprecated. Run 20250515161000_harden_orders_inventory_and_reports.sql for the safe revenue reset RPC.';
+  RAISE NOTICE '20250515144000 is deprecated. Run 20250515161000_one_copy_app_repair.sql for the safe revenue reset RPC.';
 END;
 $$;

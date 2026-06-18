@@ -5,10 +5,10 @@
 -- voids received orders through the final hardening migration instead.
 --
 -- Run:
--- supabase/migrations/20250515161000_harden_orders_inventory_and_reports.sql
+-- supabase/migrations/20250515161000_one_copy_app_repair.sql
 
 DO $$
 BEGIN
-  RAISE NOTICE '20250515157000 is deprecated. Run 20250515161000_harden_orders_inventory_and_reports.sql for void-based receipt cleanup.';
+  RAISE NOTICE '20250515157000 is deprecated. Run 20250515161000_one_copy_app_repair.sql for void-based receipt cleanup.';
 END;
 $$;

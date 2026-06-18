@@ -25,6 +25,9 @@ ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS voided_at timestamp with time zone,
   ADD COLUMN IF NOT EXISTS void_reason text;
 
+ALTER TABLE public.menu
+  ADD COLUMN IF NOT EXISTS image_url text;
+
 CREATE TABLE IF NOT EXISTS public.user_roles (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   role text NOT NULL CHECK (role IN ('admin', 'staff', 'customer')),
@@ -100,6 +103,24 @@ CREATE INDEX IF NOT EXISTS inventory_transactions_reference_type_idx
 -- 2) Admin helper
 -- ============================================================================
 
+CREATE OR REPLACE FUNCTION public.is_admin(uid uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles ur
+    WHERE ur.user_id = uid
+      AND ur.role = 'admin'
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_admin(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_admin(uuid) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.is_admin_app_user()
 RETURNS boolean
 LANGUAGE sql
@@ -119,7 +140,49 @@ REVOKE ALL ON FUNCTION public.is_admin_app_user() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_admin_app_user() TO authenticated;
 
 -- ============================================================================
--- 3) Confirm order: create a pending order only
+-- 3) Public menu RPC
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.get_menu_public()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_result jsonb;
+BEGIN
+  SELECT coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'item_id', m.item_id,
+        'name', m.name,
+        'size_label', m.size_label,
+        'description', m.description,
+        'price', m.price,
+        'category', m.category,
+        'image_url', m.image_url,
+        'availability_status', m.availability_status
+      )
+      ORDER BY m.category, m.name, m.size_label
+    ),
+    '[]'::jsonb
+  )
+  INTO v_result
+  FROM public.menu m
+  WHERE lower(coalesce(m.availability_status, '')) = 'available';
+
+  RETURN v_result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_menu_public() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_menu_public() TO anon;
+GRANT EXECUTE ON FUNCTION public.get_menu_public() TO authenticated;
+
+-- ============================================================================
+-- 4) Confirm order: create a pending order only
 --    No payment and no inventory deduction happen here.
 --    The sale is completed by mark_order_received().
 -- ============================================================================
@@ -788,6 +851,82 @@ $$;
 REVOKE ALL ON FUNCTION public.create_inventory_ingredient(text, text, double precision, text, double precision, double precision, bigint, bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_inventory_ingredient(text, text, double precision, text, double precision, double precision, bigint, bigint) TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.permanent_delete_archived_item(
+  p_item_type text,
+  p_item_id bigint,
+  p_confirm text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_admin_app_user() THEN
+    RAISE EXCEPTION 'permanent_delete_archived_item: not authorized (admin role required)';
+  END IF;
+
+  IF trim(coalesce(p_confirm, '')) <> 'DELETE PERMANENTLY' THEN
+    RAISE EXCEPTION 'permanent_delete_archived_item: confirmation phrase did not match';
+  END IF;
+
+  IF p_item_type = 'ingredient' THEN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM public.inventory i
+      WHERE i.ingredient_id = p_item_id
+        AND i.is_active = false
+    ) THEN
+      RAISE EXCEPTION 'permanent_delete_archived_item: archived ingredient % not found', p_item_id;
+    END IF;
+
+    DELETE FROM public.menu_ingredients mi
+    WHERE mi.ingredient_id = p_item_id;
+
+    UPDATE public.menu m
+    SET inventory_ingredient_id = NULL
+    WHERE m.inventory_ingredient_id = p_item_id;
+
+    DELETE FROM public.inventory_transactions it
+    WHERE it.ingredient_id = p_item_id;
+
+    DELETE FROM public.inventory i
+    WHERE i.ingredient_id = p_item_id
+      AND i.is_active = false;
+
+    RETURN;
+  END IF;
+
+  IF p_item_type = 'menu' THEN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM public.menu m
+      WHERE m.item_id = p_item_id
+        AND lower(coalesce(m.availability_status, '')) = 'unavailable'
+    ) THEN
+      RAISE EXCEPTION 'permanent_delete_archived_item: archived menu item % not found', p_item_id;
+    END IF;
+
+    DELETE FROM public.menu_ingredients mi
+    WHERE mi.menu_item_id = p_item_id;
+
+    DELETE FROM public.order_items oi
+    WHERE oi.menu_item_id = p_item_id;
+
+    DELETE FROM public.menu m
+    WHERE m.item_id = p_item_id
+      AND lower(coalesce(m.availability_status, '')) = 'unavailable';
+
+    RETURN;
+  END IF;
+
+  RAISE EXCEPTION 'permanent_delete_archived_item: p_item_type must be ingredient or menu';
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.permanent_delete_archived_item(text, bigint, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.permanent_delete_archived_item(text, bigint, text) TO authenticated;
+
 -- ============================================================================
 -- 7) Queue, received, and sold-item report RPCs
 -- ============================================================================
@@ -1129,7 +1268,307 @@ REVOKE ALL ON FUNCTION public.delete_received_orders_by_date(timestamp with time
 GRANT EXECUTE ON FUNCTION public.delete_received_orders_by_date(timestamp with time zone, timestamp with time zone, text, text, text) TO authenticated;
 
 -- ============================================================================
--- 9) Safer revenue reset
+-- 9) Revert or delete specific received receipts by order ID
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.void_received_orders_by_ids(
+  p_order_ids bigint[],
+  p_confirm_email text,
+  p_confirm_action text,
+  p_confirm_scope text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_requested_orders bigint := 0;
+  v_voided_orders bigint := 0;
+  v_voided_sales_amount double precision := 0;
+  v_restored_transactions bigint := 0;
+BEGIN
+  IF NOT public.is_admin_app_user() THEN
+    RAISE EXCEPTION 'void_received_orders_by_ids: not authorized (admin role required)';
+  END IF;
+
+  IF p_order_ids IS NULL OR array_length(p_order_ids, 1) IS NULL THEN
+    RAISE EXCEPTION 'void_received_orders_by_ids: at least one order_id is required';
+  END IF;
+
+  IF lower(trim(coalesce(p_confirm_email, ''))) <> lower(coalesce(auth.jwt() ->> 'email', '')) THEN
+    RAISE EXCEPTION 'void_received_orders_by_ids: account email confirmation did not match';
+  END IF;
+
+  IF trim(coalesce(p_confirm_action, '')) NOT IN ('REVERT RECEIPTS', 'VOID RECEIPTS') THEN
+    RAISE EXCEPTION 'void_received_orders_by_ids: first confirmation phrase did not match';
+  END IF;
+
+  IF trim(coalesce(p_confirm_scope, '')) NOT IN ('REVERT SELECTED RECEIPTS', 'VOID SELECTED RECEIPTS') THEN
+    RAISE EXCEPTION 'void_received_orders_by_ids: second confirmation phrase did not match';
+  END IF;
+
+  DROP TABLE IF EXISTS tmp_requested_order_ids;
+  DROP TABLE IF EXISTS tmp_received_orders_to_void;
+  DROP TABLE IF EXISTS tmp_inventory_reversals;
+
+  CREATE TEMP TABLE tmp_requested_order_ids ON COMMIT DROP AS
+  SELECT DISTINCT unnest(p_order_ids)::bigint AS order_id;
+
+  SELECT COUNT(*) INTO v_requested_orders
+  FROM tmp_requested_order_ids;
+
+  IF v_requested_orders = 0 THEN
+    RAISE EXCEPTION 'void_received_orders_by_ids: at least one order_id is required';
+  END IF;
+
+  CREATE TEMP TABLE tmp_received_orders_to_void ON COMMIT DROP AS
+  SELECT o.order_id, o.cashier_id, o.total_amount
+  FROM public.orders o
+  JOIN tmp_requested_order_ids r ON r.order_id = o.order_id
+  WHERE o.status = 'received';
+
+  IF (SELECT COUNT(*) FROM tmp_received_orders_to_void) <> v_requested_orders THEN
+    RAISE EXCEPTION 'void_received_orders_by_ids: one or more receipts were not found or are no longer received';
+  END IF;
+
+  SELECT coalesce(SUM(total_amount), 0)::double precision
+  INTO v_voided_sales_amount
+  FROM tmp_received_orders_to_void;
+
+  PERFORM 1
+  FROM public.orders o
+  JOIN tmp_received_orders_to_void d ON d.order_id = o.order_id
+  ORDER BY o.order_id
+  FOR UPDATE OF o;
+
+  CREATE TEMP TABLE tmp_inventory_reversals ON COMMIT DROP AS
+  SELECT
+    it.reference_id AS order_id,
+    o.cashier_id,
+    it.ingredient_id,
+    SUM(-it.quantity_change)::double precision AS quantity_restore
+  FROM public.inventory_transactions it
+  JOIN tmp_received_orders_to_void o ON o.order_id = it.reference_id
+  WHERE it.transaction_type = 'sale'
+    AND it.quantity_change < 0
+  GROUP BY it.reference_id, o.cashier_id, it.ingredient_id;
+
+  PERFORM 1
+  FROM public.inventory i
+  JOIN tmp_inventory_reversals r ON r.ingredient_id = i.ingredient_id
+  ORDER BY i.ingredient_id
+  FOR UPDATE OF i;
+
+  UPDATE public.inventory i
+  SET current_quantity = i.current_quantity + r.quantity_restore
+  FROM (
+    SELECT ingredient_id, SUM(quantity_restore)::double precision AS quantity_restore
+    FROM tmp_inventory_reversals
+    GROUP BY ingredient_id
+  ) r
+  WHERE r.ingredient_id = i.ingredient_id;
+
+  INSERT INTO public.inventory_transactions (
+    ingredient_id,
+    quantity_change,
+    transaction_type,
+    reference_id,
+    reason,
+    cashier_id
+  )
+  SELECT
+    r.ingredient_id,
+    r.quantity_restore,
+    'void',
+    r.order_id,
+    format('Void received order %s: restore sale deduction', r.order_id),
+    r.cashier_id
+  FROM tmp_inventory_reversals r
+  WHERE r.quantity_restore > 0;
+
+  GET DIAGNOSTICS v_restored_transactions = ROW_COUNT;
+
+  UPDATE public.orders o
+  SET
+    status = 'voided',
+    voided_at = now(),
+    void_reason = 'Voided from specific receipt selection'
+  FROM tmp_received_orders_to_void d
+  WHERE d.order_id = o.order_id
+    AND o.status = 'received';
+
+  GET DIAGNOSTICS v_voided_orders = ROW_COUNT;
+
+  RETURN jsonb_build_object(
+    'deleted_payments', 0,
+    'deleted_order_items', 0,
+    'deleted_orders', 0,
+    'voided_orders', v_voided_orders,
+    'voided_sales_amount', v_voided_sales_amount,
+    'restored_inventory_transactions', v_restored_transactions
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.void_received_orders_by_ids(bigint[], text, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.void_received_orders_by_ids(bigint[], text, text, text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.delete_received_orders_by_ids(
+  p_order_ids bigint[],
+  p_confirm_email text,
+  p_confirm_action text,
+  p_confirm_scope text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_requested_orders bigint := 0;
+  v_deleted_orders bigint := 0;
+  v_deleted_order_items bigint := 0;
+  v_deleted_payments bigint := 0;
+  v_deleted_sales_amount double precision := 0;
+  v_restored_transactions bigint := 0;
+BEGIN
+  IF NOT public.is_admin_app_user() THEN
+    RAISE EXCEPTION 'delete_received_orders_by_ids: not authorized (admin role required)';
+  END IF;
+
+  IF p_order_ids IS NULL OR array_length(p_order_ids, 1) IS NULL THEN
+    RAISE EXCEPTION 'delete_received_orders_by_ids: at least one order_id is required';
+  END IF;
+
+  IF lower(trim(coalesce(p_confirm_email, ''))) <> lower(coalesce(auth.jwt() ->> 'email', '')) THEN
+    RAISE EXCEPTION 'delete_received_orders_by_ids: account email confirmation did not match';
+  END IF;
+
+  IF trim(coalesce(p_confirm_action, '')) <> 'DELETE RECEIPTS' THEN
+    RAISE EXCEPTION 'delete_received_orders_by_ids: first confirmation phrase did not match';
+  END IF;
+
+  IF trim(coalesce(p_confirm_scope, '')) <> 'DELETE SELECTED RECEIPTS' THEN
+    RAISE EXCEPTION 'delete_received_orders_by_ids: second confirmation phrase did not match';
+  END IF;
+
+  DROP TABLE IF EXISTS tmp_requested_order_ids;
+  DROP TABLE IF EXISTS tmp_received_orders_to_delete;
+  DROP TABLE IF EXISTS tmp_inventory_reversals;
+
+  CREATE TEMP TABLE tmp_requested_order_ids ON COMMIT DROP AS
+  SELECT DISTINCT unnest(p_order_ids)::bigint AS order_id;
+
+  SELECT COUNT(*) INTO v_requested_orders
+  FROM tmp_requested_order_ids;
+
+  IF v_requested_orders = 0 THEN
+    RAISE EXCEPTION 'delete_received_orders_by_ids: at least one order_id is required';
+  END IF;
+
+  CREATE TEMP TABLE tmp_received_orders_to_delete ON COMMIT DROP AS
+  SELECT o.order_id, o.cashier_id, o.total_amount
+  FROM public.orders o
+  JOIN tmp_requested_order_ids r ON r.order_id = o.order_id
+  WHERE o.status = 'received';
+
+  IF (SELECT COUNT(*) FROM tmp_received_orders_to_delete) <> v_requested_orders THEN
+    RAISE EXCEPTION 'delete_received_orders_by_ids: one or more receipts were not found or are no longer received';
+  END IF;
+
+  SELECT coalesce(SUM(total_amount), 0)::double precision
+  INTO v_deleted_sales_amount
+  FROM tmp_received_orders_to_delete;
+
+  PERFORM 1
+  FROM public.orders o
+  JOIN tmp_received_orders_to_delete d ON d.order_id = o.order_id
+  ORDER BY o.order_id
+  FOR UPDATE OF o;
+
+  CREATE TEMP TABLE tmp_inventory_reversals ON COMMIT DROP AS
+  SELECT
+    it.reference_id AS order_id,
+    o.cashier_id,
+    it.ingredient_id,
+    SUM(-it.quantity_change)::double precision AS quantity_restore
+  FROM public.inventory_transactions it
+  JOIN tmp_received_orders_to_delete o ON o.order_id = it.reference_id
+  WHERE it.transaction_type = 'sale'
+    AND it.quantity_change < 0
+  GROUP BY it.reference_id, o.cashier_id, it.ingredient_id;
+
+  PERFORM 1
+  FROM public.inventory i
+  JOIN tmp_inventory_reversals r ON r.ingredient_id = i.ingredient_id
+  ORDER BY i.ingredient_id
+  FOR UPDATE OF i;
+
+  UPDATE public.inventory i
+  SET current_quantity = i.current_quantity + r.quantity_restore
+  FROM (
+    SELECT ingredient_id, SUM(quantity_restore)::double precision AS quantity_restore
+    FROM tmp_inventory_reversals
+    GROUP BY ingredient_id
+  ) r
+  WHERE r.ingredient_id = i.ingredient_id;
+
+  INSERT INTO public.inventory_transactions (
+    ingredient_id,
+    quantity_change,
+    transaction_type,
+    reference_id,
+    reason,
+    cashier_id
+  )
+  SELECT
+    r.ingredient_id,
+    r.quantity_restore,
+    'delete',
+    r.order_id,
+    format('Delete received order %s: restore sale deduction', r.order_id),
+    r.cashier_id
+  FROM tmp_inventory_reversals r
+  WHERE r.quantity_restore > 0;
+
+  GET DIAGNOSTICS v_restored_transactions = ROW_COUNT;
+
+  DELETE FROM public.payments p
+  USING tmp_received_orders_to_delete d
+  WHERE p.order_id = d.order_id;
+
+  GET DIAGNOSTICS v_deleted_payments = ROW_COUNT;
+
+  DELETE FROM public.order_items oi
+  USING tmp_received_orders_to_delete d
+  WHERE oi.order_id = d.order_id;
+
+  GET DIAGNOSTICS v_deleted_order_items = ROW_COUNT;
+
+  DELETE FROM public.orders o
+  USING tmp_received_orders_to_delete d
+  WHERE o.order_id = d.order_id
+    AND o.status = 'received';
+
+  GET DIAGNOSTICS v_deleted_orders = ROW_COUNT;
+
+  RETURN jsonb_build_object(
+    'deleted_payments', v_deleted_payments,
+    'deleted_order_items', v_deleted_order_items,
+    'deleted_orders', v_deleted_orders,
+    'voided_orders', 0,
+    'deleted_sales_amount', v_deleted_sales_amount,
+    'restored_inventory_transactions', v_restored_transactions
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_received_orders_by_ids(bigint[], text, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.delete_received_orders_by_ids(bigint[], text, text, text) TO authenticated;
+
+-- ============================================================================
+-- 10) Safer revenue reset
 --    Does not delete orders/order_items/payments. It voids all active orders so
 --    reports reset, restores sale inventory deductions, and clears expenses.
 -- ============================================================================
@@ -1838,6 +2277,7 @@ END $$;
 -- 11) RLS read lockdown
 -- ============================================================================
 
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.menu ENABLE ROW LEVEL SECURITY;
@@ -1854,6 +2294,14 @@ FOR SELECT
 TO authenticated
 USING (public.is_admin_app_user());
 
+DROP POLICY IF EXISTS "inventory_modify_admin_only" ON public.inventory;
+CREATE POLICY "inventory_modify_admin_only"
+ON public.inventory
+FOR ALL
+TO authenticated
+USING (public.is_admin_app_user())
+WITH CHECK (public.is_admin_app_user());
+
 DROP POLICY IF EXISTS "inventory_tx_read_authenticated" ON public.inventory_transactions;
 DROP POLICY IF EXISTS "inventory_tx_read_admin_only" ON public.inventory_transactions;
 CREATE POLICY "inventory_tx_read_admin_only"
@@ -1861,6 +2309,13 @@ ON public.inventory_transactions
 FOR SELECT
 TO authenticated
 USING (public.is_admin_app_user());
+
+DROP POLICY IF EXISTS "inventory_tx_insert_admin_only" ON public.inventory_transactions;
+CREATE POLICY "inventory_tx_insert_admin_only"
+ON public.inventory_transactions
+FOR INSERT
+TO authenticated
+WITH CHECK (public.is_admin_app_user());
 
 DROP POLICY IF EXISTS "menu_select_authenticated" ON public.menu;
 DROP POLICY IF EXISTS "menu_select_admin_only" ON public.menu;
@@ -1870,6 +2325,14 @@ FOR SELECT
 TO authenticated
 USING (public.is_admin_app_user());
 
+DROP POLICY IF EXISTS "menu_modify_admin_only" ON public.menu;
+CREATE POLICY "menu_modify_admin_only"
+ON public.menu
+FOR ALL
+TO authenticated
+USING (public.is_admin_app_user())
+WITH CHECK (public.is_admin_app_user());
+
 DROP POLICY IF EXISTS "menu_ingredients_select_authenticated" ON public.menu_ingredients;
 DROP POLICY IF EXISTS "menu_ingredients_select_admin_only" ON public.menu_ingredients;
 CREATE POLICY "menu_ingredients_select_admin_only"
@@ -1878,6 +2341,14 @@ FOR SELECT
 TO authenticated
 USING (public.is_admin_app_user());
 
+DROP POLICY IF EXISTS "menu_ingredients_modify_admin_only" ON public.menu_ingredients;
+CREATE POLICY "menu_ingredients_modify_admin_only"
+ON public.menu_ingredients
+FOR ALL
+TO authenticated
+USING (public.is_admin_app_user())
+WITH CHECK (public.is_admin_app_user());
+
 DROP POLICY IF EXISTS "expenses_select_authenticated" ON public.expenses;
 DROP POLICY IF EXISTS "expenses_select_admin_only" ON public.expenses;
 CREATE POLICY "expenses_select_admin_only"
@@ -1885,6 +2356,29 @@ ON public.expenses
 FOR SELECT
 TO authenticated
 USING (public.is_admin_app_user());
+
+DROP POLICY IF EXISTS "expenses_modify_admin_only" ON public.expenses;
+CREATE POLICY "expenses_modify_admin_only"
+ON public.expenses
+FOR ALL
+TO authenticated
+USING (public.is_admin_app_user())
+WITH CHECK (public.is_admin_app_user());
+
+DROP POLICY IF EXISTS "user_roles_select_own" ON public.user_roles;
+CREATE POLICY "user_roles_select_own"
+ON public.user_roles
+FOR SELECT
+TO authenticated
+USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "user_roles_service_manage" ON public.user_roles;
+CREATE POLICY "user_roles_service_manage"
+ON public.user_roles
+FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
 
 DROP POLICY IF EXISTS "activity_logs_select_admin_only" ON public.activity_logs;
 CREATE POLICY "activity_logs_select_admin_only"
@@ -1922,3 +2416,53 @@ GRANT SELECT ON public.activity_logs TO authenticated;
 GRANT SELECT ON public.audit_logs TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE public.activity_logs_activity_id_seq TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE public.audit_logs_log_id_seq TO authenticated;
+
+-- ============================================================================
+-- 12) Menu photo storage
+-- ============================================================================
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('menu-photos', 'menu-photos', true)
+ON CONFLICT (id) DO UPDATE
+SET public = true;
+
+DROP POLICY IF EXISTS "menu_photos_public_read" ON storage.objects;
+CREATE POLICY "menu_photos_public_read"
+ON storage.objects
+FOR SELECT
+TO public
+USING (bucket_id = 'menu-photos');
+
+DROP POLICY IF EXISTS "menu_photos_admin_insert" ON storage.objects;
+CREATE POLICY "menu_photos_admin_insert"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'menu-photos'
+  AND public.is_admin_app_user()
+);
+
+DROP POLICY IF EXISTS "menu_photos_admin_update" ON storage.objects;
+CREATE POLICY "menu_photos_admin_update"
+ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'menu-photos'
+  AND public.is_admin_app_user()
+)
+WITH CHECK (
+  bucket_id = 'menu-photos'
+  AND public.is_admin_app_user()
+);
+
+DROP POLICY IF EXISTS "menu_photos_admin_delete" ON storage.objects;
+CREATE POLICY "menu_photos_admin_delete"
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'menu-photos'
+  AND public.is_admin_app_user()
+);
