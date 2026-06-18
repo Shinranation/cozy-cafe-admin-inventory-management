@@ -83,13 +83,6 @@ function MenuPreviewVisual({ label, imageUrl = '', active = false }) {
           <span className="absolute h-[1px] w-full -rotate-45 bg-current" />
         </span>
       )}
-      {!imageUrl ? (
-        <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/85 px-2 py-1.5 text-center shadow-sm sm:inset-x-3 sm:bottom-3 sm:rounded-lg sm:px-3 sm:py-2">
-          <span className="block truncate text-[9px] font-extrabold uppercase tracking-wide text-[#3B2F2A] sm:text-xs">
-            {label}
-          </span>
-        </span>
-      ) : null}
     </span>
   )
 }
