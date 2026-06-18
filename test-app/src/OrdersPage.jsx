@@ -94,7 +94,7 @@ export default function OrdersPage({ onNewOrder, onOpenReceipts, refreshKey = 0 
     <main className="min-h-screen bg-[#FDFBF4] px-3 py-6 font-sans text-gray-700 sm:px-4 sm:py-10">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8 text-center sm:mb-16">
-          <h1 className="text-5xl font-bold leading-tight text-gray-500/80 md:text-7xl">
+          <h1 className="text-4xl font-bold leading-tight text-gray-500/80 sm:text-5xl md:text-7xl">
             Admin Dashboard <br /> Orders
           </h1>
         </header>

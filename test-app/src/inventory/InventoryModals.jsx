@@ -50,7 +50,7 @@ export default function InventoryModals({
   return (
     <>      {stockMovementDialog && activeStockIngredient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
               {stockMovementDialog.mode === 'in' ? 'Stock In' : 'Stock Out'}
             </p>
@@ -138,7 +138,7 @@ export default function InventoryModals({
 
       {missingRecipeDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
             <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
               Recipe required
             </p>
@@ -163,7 +163,7 @@ export default function InventoryModals({
 
       {editRecordDialog && (activeEditIngredient || activeEditMenuItem) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+          <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
             <h3 className="text-lg font-bold text-gray-900">
               Edit {editRecordDialog.type === 'ingredient' ? 'Ingredient' : 'Menu Item'}
             </h3>
@@ -414,7 +414,7 @@ export default function InventoryModals({
 
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
             <h3 className="text-lg font-bold text-gray-900">Are you sure?</h3>
             <p className="mt-2 text-sm text-gray-600">
               This will archive <span className="font-bold text-gray-900">{deleteConfirm.name}</span> from{' '}
@@ -455,7 +455,7 @@ export default function InventoryModals({
 
       {permanentDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
             <h3 className="text-lg font-bold text-gray-900">Permanently delete?</h3>
             <p className="mt-2 text-sm text-gray-600">
               This will permanently delete <span className="font-bold text-gray-900">{permanentDeleteConfirm.name}</span> from archived{' '}
@@ -496,7 +496,7 @@ export default function InventoryModals({
 
       {recipeEditDialog && activeRecipeEditRow && activeRecipeEditMenuItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
             <h3 className="text-lg font-bold text-gray-900">Edit Recipe Ingredient</h3>
             <p className="mt-1 text-sm text-gray-600">{activeRecipeEditMenuItem.name}</p>
 

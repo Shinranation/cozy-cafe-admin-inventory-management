@@ -249,12 +249,12 @@ export default function SoldItemsReportPage({ embedded = false }) {
       `}</style>
 
       <div className="mx-auto max-w-7xl">
-        <header className={`sold-items-no-print flex flex-col gap-4 md:flex-row md:items-end md:justify-between ${embedded ? 'mb-6' : 'mb-10'}`}>
+        <header className={`sold-items-no-print flex flex-col gap-3 md:flex-row md:items-end md:justify-between ${embedded ? 'mb-5 sm:mb-6' : 'mb-8 sm:mb-10'}`}>
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#D98C5F]">
               Sales report
             </p>
-            <h1 className={`${embedded ? 'mt-1 text-3xl' : 'mt-2 text-5xl md:text-6xl'} font-bold text-gray-600`}>
+            <h1 className={`${embedded ? 'mt-1 text-2xl sm:text-3xl' : 'mt-2 text-4xl md:text-6xl'} font-bold text-gray-600`}>
               Sold Items
             </h1>
           </div>
@@ -263,7 +263,7 @@ export default function SoldItemsReportPage({ embedded = false }) {
             <button
               type="button"
               onClick={handleToday}
-              className="rounded-full border border-gray-300 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50"
+              className="rounded-full border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 shadow-sm transition hover:bg-gray-50 sm:px-5 sm:py-2.5 sm:text-sm"
             >
               Today
             </button>
@@ -271,7 +271,7 @@ export default function SoldItemsReportPage({ embedded = false }) {
               type="button"
               onClick={() => void loadReport()}
               disabled={!configured || loading}
-              className="rounded-full bg-[#3B2F2A] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full bg-[#3B2F2A] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
             >
               {loading ? 'Loading...' : 'Refresh'}
             </button>
@@ -290,7 +290,7 @@ export default function SoldItemsReportPage({ embedded = false }) {
           </p>
         )}
 
-        <section className="sold-items-no-print mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_auto_auto]">
+        <section className="sold-items-no-print mb-5 grid grid-cols-2 gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:mb-6 sm:gap-4 sm:p-4 md:grid-cols-[1fr_1fr_auto_auto]">
           <label className="text-xs font-bold uppercase tracking-wide text-gray-500">
             Start Date
             <input
@@ -311,63 +311,63 @@ export default function SoldItemsReportPage({ embedded = false }) {
             />
           </label>
 
-          <div className="flex items-end">
+          <div className="col-span-2 flex items-end sm:col-span-1">
             <button
               type="button"
               onClick={() => window.print()}
               disabled={rows.length === 0}
-              className="w-full rounded-lg border border-[#D98C5F]/30 bg-white px-4 py-2 text-sm font-bold text-[#3B2F2A] transition hover:bg-[#FFF7F1] disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full rounded-lg border border-[#D98C5F]/30 bg-white px-3 py-2 text-xs font-bold text-[#3B2F2A] transition hover:bg-[#FFF7F1] disabled:cursor-not-allowed disabled:opacity-40 sm:px-4 sm:text-sm"
             >
               Print / Save PDF
             </button>
           </div>
 
-          <div className="flex items-end">
+          <div className="col-span-2 flex items-end sm:col-span-1">
             <button
               type="button"
               onClick={handleSaveCsv}
               disabled={rows.length === 0}
-              className="w-full rounded-lg bg-[#D98C5F] px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full rounded-lg bg-[#D98C5F] px-3 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4 sm:text-sm"
             >
               Save CSV
             </button>
           </div>
         </section>
 
-        <section id="sold-items-print-area" className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex flex-col gap-4 border-b border-gray-100 pb-5 md:flex-row md:items-start md:justify-between">
+        <section id="sold-items-print-area" className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-5 flex flex-col gap-4 border-b border-gray-100 pb-4 md:flex-row md:items-start md:justify-between sm:mb-6 sm:pb-5">
             <div>
               <p className="text-sm font-bold uppercase tracking-widest text-[#D98C5F]">
                 The Cozzy Cup Cafe
               </p>
-              <h2 className="mt-1 text-3xl font-bold text-gray-800">{reportTitle}</h2>
+              <h2 className="mt-1 text-2xl font-bold text-gray-800 sm:text-3xl">{reportTitle}</h2>
               <p className="mt-2 text-sm text-gray-500">
                 Received orders only. Generated {formatDateTime(new Date())}.
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl border border-gray-200 px-4 py-3">
+            <div className="grid grid-cols-3 gap-2 text-center sm:gap-3">
+              <div className="rounded-xl border border-gray-200 px-2 py-2 sm:px-4 sm:py-3">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
                   Items Sold
                 </p>
-                <p className="mt-1 text-2xl font-extrabold text-gray-800">
+                <p className="mt-1 text-xl font-extrabold text-gray-800 sm:text-2xl">
                   {totals.quantity}
                 </p>
               </div>
-              <div className="rounded-xl border border-gray-200 px-4 py-3">
+              <div className="rounded-xl border border-gray-200 px-2 py-2 sm:px-4 sm:py-3">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
                   Lines
                 </p>
-                <p className="mt-1 text-2xl font-extrabold text-gray-800">
+                <p className="mt-1 text-xl font-extrabold text-gray-800 sm:text-2xl">
                   {rows.length}
                 </p>
               </div>
-              <div className="rounded-xl border border-gray-200 px-4 py-3">
+              <div className="rounded-xl border border-gray-200 px-2 py-2 sm:px-4 sm:py-3">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
                   Sales
                 </p>
-                <p className="mt-1 text-2xl font-extrabold text-green-700">
+                <p className="mt-1 text-xl font-extrabold text-green-700 sm:text-2xl">
                   {formatMoney(totals.sales)}
                 </p>
               </div>
@@ -452,7 +452,7 @@ export default function SoldItemsReportPage({ embedded = false }) {
   if (embedded) return content
 
   return (
-    <main className="min-h-screen bg-[#FDFBF4] px-4 py-10 font-sans text-gray-700">
+    <main className="min-h-screen bg-[#FDFBF4] px-3 py-6 font-sans text-gray-700 sm:px-4 sm:py-10">
       {content}
     </main>
   )

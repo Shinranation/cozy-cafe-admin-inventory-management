@@ -384,10 +384,10 @@ export default function SalesPage() {
   const maxWeeklyRevenue = Math.max(1, ...currentMonthData.weeklyRevenue)
 
   return (
-    <main className="min-h-screen bg-[#FDFBF4] py-10 px-4 font-sans text-gray-700">
-      <div className="max-w-6xl mx-auto">
-        <header className="text-center mb-12">
-          <h1 className="text-6xl md:text-7xl font-bold text-gray-500/80 leading-tight">
+    <main className="min-h-screen bg-[#FDFBF4] px-3 py-6 font-sans text-gray-700 sm:px-4 sm:py-10">
+      <div className="mx-auto max-w-6xl">
+        <header className="mb-8 text-center sm:mb-12">
+          <h1 className="text-4xl font-bold leading-tight text-gray-500/80 sm:text-5xl md:text-7xl">
             Admin Dashboard <br /> Sales
           </h1>
         </header>
@@ -419,7 +419,7 @@ export default function SalesPage() {
 
         {resetDialogOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+            <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
               <h3 className="text-lg font-bold text-gray-900">Reset Sales Data</h3>
               <p className="mt-2 text-sm text-gray-600">
                 This clears orders, order items, payments, and expenses for reporting cleanup. It does not cancel sales or restore inventory quantities.
@@ -485,16 +485,16 @@ export default function SalesPage() {
           </div>
         )}
 
-        <section className="bg-white border-2 border-[#D98C5F]/40 rounded-[2.5rem] p-8 mb-8 shadow-sm">
+        <section className="mb-6 rounded-2xl border border-[#D98C5F]/40 bg-white p-4 shadow-sm sm:mb-8 sm:rounded-[2.5rem] sm:border-2 sm:p-8">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
                 Supabase totals
               </p>
-              <h2 className="text-2xl font-bold text-gray-700">{year} Monthly Overview</h2>
+              <h2 className="text-xl font-bold text-gray-700 sm:text-2xl">{year} Monthly Overview</h2>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <select
                 value={year}
                 onChange={(e) => setYear(safeNumber(e.target.value, currentYear))}
@@ -511,7 +511,7 @@ export default function SalesPage() {
                 type="button"
                 onClick={fetchFinancialData}
                 disabled={!configured || loading}
-                className="rounded-xl bg-[#D98C5F] px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-[#D98C5F] px-3 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-sm"
               >
                 {loading ? 'Loading...' : 'Refresh'}
               </button>
@@ -519,34 +519,34 @@ export default function SalesPage() {
                 type="button"
                 onClick={() => void openResetDialog()}
                 disabled={!configured || loading}
-                className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-sm"
               >
                 Reset Data
               </button>
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3 mb-6">
-            <div className="rounded-2xl border border-[#D98C5F]/30 p-5">
+          <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 sm:mb-6">
+            <div className="rounded-2xl border border-[#D98C5F]/30 p-4 sm:p-5">
               <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
                 Year Sales
               </p>
-              <p className="mt-2 text-2xl font-bold text-green-700">{formatCurrency(yearRevenue)}</p>
+              <p className="mt-2 text-xl font-bold text-green-700 sm:text-2xl">{formatCurrency(yearRevenue)}</p>
             </div>
 
-            <div className="rounded-2xl border border-[#D98C5F]/30 p-5">
+            <div className="rounded-2xl border border-[#D98C5F]/30 p-4 sm:p-5">
               <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
                 Year Cost
               </p>
-              <p className="mt-2 text-2xl font-bold text-red-500">{formatCurrency(yearExpenses)}</p>
+              <p className="mt-2 text-xl font-bold text-red-500 sm:text-2xl">{formatCurrency(yearExpenses)}</p>
             </div>
 
-            <div className="rounded-2xl border border-[#D98C5F]/30 p-5">
+            <div className="rounded-2xl border border-[#D98C5F]/30 p-4 sm:p-5">
               <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
                 Year Net Income
               </p>
               <p
-                className={`mt-2 text-2xl font-bold ${
+                className={`mt-2 text-xl font-bold sm:text-2xl ${
                   yearNetIncome >= 0 ? 'text-orange-500' : 'text-red-700'
                 }`}
               >
@@ -555,7 +555,7 @@ export default function SalesPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
             {computedData.map((data) => {
               const revenueHeight = (data.totalRevenue / maxMonthlyAmount) * 130
               const costHeight = (data.totalExpenses / maxMonthlyAmount) * 130
@@ -569,8 +569,10 @@ export default function SalesPage() {
                   onClick={() => setSelectedMonth(data.month)}
                   className={`
                     cursor-pointer
-                    rounded-3xl
-                    p-4
+                    rounded-2xl
+                    p-3
+                    sm:rounded-3xl
+                    sm:p-4
                     transition-all
                     border-2
                     text-left
@@ -581,9 +583,9 @@ export default function SalesPage() {
                     }
                   `}
                 >
-                  <h3 className="text-center font-bold mb-6">{data.month}</h3>
+                  <h3 className="mb-4 text-center text-sm font-bold sm:mb-6 sm:text-base">{data.month}</h3>
 
-                  <div className="flex items-end justify-center gap-2 h-40 mb-6 border-b border-gray-200 pb-2">
+                  <div className="mb-4 flex h-36 items-end justify-center gap-1.5 border-b border-gray-200 pb-2 sm:mb-6 sm:h-40 sm:gap-2">
                     <div className="flex flex-col items-center">
                       <div
                         style={{ height: `${costHeight}px` }}
@@ -609,7 +611,7 @@ export default function SalesPage() {
                     </div>
                   </div>
 
-                  <div className="border border-[#D98C5F]/30 rounded-2xl p-3 text-xs space-y-2">
+                  <div className="space-y-1.5 rounded-xl border border-[#D98C5F]/30 p-2 text-[10px] sm:rounded-2xl sm:p-3 sm:text-xs sm:space-y-2">
                     <div className="flex justify-between gap-3">
                       <span>Total Cost</span>
                       <span>{formatCurrency(data.totalExpenses)}</span>
@@ -631,13 +633,13 @@ export default function SalesPage() {
           </div>
         </section>
 
-        <section className="bg-white border-2 border-[#D98C5F]/40 rounded-[2.5rem] p-8 mb-8 shadow-sm">
+        <section className="mb-6 rounded-2xl border border-[#D98C5F]/40 bg-white p-4 shadow-sm sm:mb-8 sm:rounded-[2.5rem] sm:border-2 sm:p-8">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
                 Receipt report
               </p>
-              <h2 className="text-3xl font-bold text-gray-700">
+              <h2 className="text-2xl font-bold text-gray-700 sm:text-3xl">
                 {selectedMonth} {year}
               </h2>
               <p className="mt-2 text-sm text-gray-500">
@@ -648,26 +650,26 @@ export default function SalesPage() {
               type="button"
               onClick={fetchFinancialData}
               disabled={!configured || loading}
-              className="rounded-full border border-[#D98C5F]/30 bg-white px-5 py-2 text-sm font-bold text-[#3B2F2A] transition hover:bg-[#FFF7F1] disabled:opacity-50"
+              className="rounded-full border border-[#D98C5F]/30 bg-white px-4 py-2 text-xs font-bold text-[#3B2F2A] transition hover:bg-[#FFF7F1] disabled:opacity-50 sm:px-5 sm:text-sm"
             >
               Refresh Receipt
             </button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 mb-8">
-            <div className="rounded-2xl border border-[#D98C5F]/30 bg-[#FDFBF4] p-5">
+          <div className="mb-6 grid gap-3 sm:grid-cols-2 sm:gap-4 sm:mb-8">
+            <div className="rounded-2xl border border-[#D98C5F]/30 bg-[#FDFBF4] p-4 sm:p-5">
               <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
                 Ingredient Cost Total
               </p>
-              <p className="mt-2 text-3xl font-bold text-red-600">
+              <p className="mt-2 text-2xl font-bold text-red-600 sm:text-3xl">
                 {formatCurrency(selectedIngredientCost)}
               </p>
             </div>
-            <div className="rounded-2xl border border-[#D98C5F]/30 bg-[#FDFBF4] p-5">
+            <div className="rounded-2xl border border-[#D98C5F]/30 bg-[#FDFBF4] p-4 sm:p-5">
               <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
                 Best-Seller Sales
               </p>
-              <p className="mt-2 text-3xl font-bold text-green-700">
+              <p className="mt-2 text-2xl font-bold text-green-700 sm:text-3xl">
                 {formatCurrency(selectedBestSellerRevenue)}
               </p>
             </div>
@@ -771,9 +773,9 @@ export default function SalesPage() {
           </div>
         </section>
 
-        <section className="bg-white border-2 border-[#D98C5F]/40 rounded-[2.5rem] p-10 shadow-sm">
+        <section className="rounded-2xl border border-[#D98C5F]/40 bg-white p-4 shadow-sm sm:rounded-[2.5rem] sm:border-2 sm:p-10">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-            <h2 className="text-4xl font-bold">{selectedMonth}</h2>
+            <h2 className="text-3xl font-bold sm:text-4xl">{selectedMonth}</h2>
 
             <select
               value={selectedMonth}
@@ -817,14 +819,14 @@ export default function SalesPage() {
                 <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
                   Orders
                 </p>
-                <p className="mt-2 text-4xl font-bold">{currentMonthData.orderCount}</p>
+                <p className="mt-2 text-3xl font-bold sm:text-4xl">{currentMonthData.orderCount}</p>
               </div>
 
               <div className="rounded-2xl border border-[#D98C5F]/30 p-5">
                 <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
                   Expense Rows
                 </p>
-                <p className="mt-2 text-4xl font-bold">
+                <p className="mt-2 text-3xl font-bold sm:text-4xl">
                   {currentMonthData.expenseCount}
                 </p>
               </div>

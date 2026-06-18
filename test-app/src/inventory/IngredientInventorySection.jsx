@@ -1,7 +1,7 @@
 const INVENTORY_CARD_SLOTS = 4
 
 const inventoryCardGridClass =
-  'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'
+  'grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3'
 
 function slugifyForId(value) {
   return String(value || 'unclassified')
@@ -44,7 +44,7 @@ export default function IngredientInventorySection({
 
   if (!loading && configured && rows.length === 0 && !fetchError) {
     return (
-      <div className="mb-8 rounded-2xl border-2 border-dashed border-gray-300 bg-white/80 px-6 py-10 text-center text-gray-600">
+      <div className="mb-6 rounded-2xl border-2 border-dashed border-gray-300 bg-white/80 px-4 py-6 text-center text-gray-600 sm:mb-8 sm:px-6 sm:py-10">
         <p className="mb-2 font-semibold text-gray-800">No ingredient rows returned</p>
         <p className="mx-auto max-w-md text-sm">
           Add rows in the inventory table or check Row Level Security allows SELECT for your anon key.
@@ -78,18 +78,18 @@ export default function IngredientInventorySection({
   }
 
   return (
-    <section className="mb-12" aria-label="Ingredient cards">
-      <div className="sticky top-3 z-20 mb-6 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
-        <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+    <section className="mb-8 sm:mb-12" aria-label="Ingredient cards">
+      <div className="sticky top-3 z-20 mb-4 rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:mb-6 sm:p-4">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:mb-3">
           Classifications
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {classificationGroups.map((group) => (
             <button
               key={group.id}
               type="button"
               onClick={() => scrollToClassification(group.id)}
-              className="rounded-full border border-[#D98C5F]/50 bg-[#FAF8F5] px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:border-[#D98C5F] hover:bg-white"
+              className="rounded-full border border-[#D98C5F]/50 bg-[#FAF8F5] px-2.5 py-1 text-[10px] font-bold text-gray-700 transition hover:border-[#D98C5F] hover:bg-white sm:px-3 sm:py-1.5 sm:text-xs"
             >
               {group.name} ({group.items.length})
             </button>
@@ -97,7 +97,7 @@ export default function IngredientInventorySection({
         </div>
       </div>
 
-      <div className="space-y-10">
+      <div className="space-y-7 sm:space-y-10">
         {classificationGroups.map((group) => (
           <section key={group.id} id={group.id} className="scroll-mt-28">
             <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -117,15 +117,15 @@ export default function IngredientInventorySection({
           return (
             <article
               key={row.ingredient_id}
-              className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+              className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:gap-4 sm:rounded-2xl sm:p-5"
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0">
-                  <p className="font-bold leading-tight text-gray-900">{row.name}</p>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="text-sm font-bold leading-tight text-gray-900 sm:text-base">{row.name}</p>
+                  <p className="mt-1 text-[10px] text-gray-500 sm:text-xs">
                     {[row.classification, unitDisplay].filter(Boolean).join(' / ')}
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-2 flex flex-wrap gap-2 sm:mt-3">
                     <button
                       type="button"
                       onClick={() => openEditRecordDialog('ingredient', row)}
@@ -137,7 +137,7 @@ export default function IngredientInventorySection({
                 </div>
 
                 <span
-                  className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${
+                  className={`w-fit shrink-0 rounded-full border px-2 py-1 text-[9px] font-bold uppercase sm:text-[10px] ${
                     negative
                       ? 'border-purple-300 bg-purple-50 text-purple-800'
                       : low
@@ -149,26 +149,26 @@ export default function IngredientInventorySection({
                 </span>
               </div>
 
-              <p className="min-h-10 text-sm text-gray-600">
+              <p className="hidden min-h-10 text-sm text-gray-600 sm:block">
                 {row.classification ? `${row.classification} ingredient` : 'Unclassified ingredient'}
               </p>
 
-              <div className="mt-auto grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
-                <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-3 py-2">
+              <div className="mt-auto grid grid-cols-2 gap-2 border-t border-gray-100 pt-3 sm:gap-3 sm:pt-4">
+                <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-2 py-1.5 sm:px-3 sm:py-2">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500">
                     Quantity
                   </p>
-                  <p className={`mt-1 break-words text-lg font-bold tabular-nums ${negative ? 'text-red-700' : 'text-gray-900'}`}>
+                  <p className={`mt-1 break-words text-base font-bold tabular-nums sm:text-lg ${negative ? 'text-red-700' : 'text-gray-900'}`}>
                     {row.current_quantity}
                   </p>
                   <p className="mt-0.5 break-words text-[10px] text-gray-500">{unitDisplay}</p>
                 </div>
 
-                <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-3 py-2">
+                <div className="rounded-lg border border-gray-200 bg-[#FAF8F5] px-2 py-1.5 sm:px-3 sm:py-2">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500">
                     Low Stock
                   </p>
-                  <p className="mt-1 break-words text-lg font-bold tabular-nums text-gray-900">{row.low_stock}</p>
+                  <p className="mt-1 break-words text-base font-bold tabular-nums text-gray-900 sm:text-lg">{row.low_stock}</p>
                   <p className="mt-0.5 text-[10px] text-gray-500">threshold</p>
                 </div>
               </div>
@@ -179,11 +179,11 @@ export default function IngredientInventorySection({
                 </p>
               )}
 
-              <div className="space-y-3 border-t border-gray-100 pt-4">
+              <div className="space-y-2 border-t border-gray-100 pt-3 sm:space-y-3 sm:pt-4">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
                   Stock Actions
                 </p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2">
                 <button
                   type="button"
                   disabled={busyIngredientId === row.ingredient_id || !configured}

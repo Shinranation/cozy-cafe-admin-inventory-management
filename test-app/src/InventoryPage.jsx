@@ -1245,10 +1245,10 @@ export default function InventoryPage() {
   }, [configured])
 
   return (
-    <main className="min-h-screen bg-[#FDFBF4] px-4 py-10 font-sans text-gray-700">
-      <div className="max-w-7xl mx-auto">
-        <header className="text-center mb-16">
-          <h1 className="text-6xl md:text-7xl font-bold text-gray-500/80 leading-tight">
+    <main className="min-h-screen bg-[#FDFBF4] px-3 py-6 font-sans text-gray-700 sm:px-4 sm:py-10">
+      <div className="mx-auto max-w-7xl">
+        <header className="mb-8 text-center sm:mb-16">
+          <h1 className="text-4xl font-bold leading-tight text-gray-500/80 sm:text-5xl md:text-7xl">
             Admin Dashboard <br /> Inventory
           </h1>
         </header>

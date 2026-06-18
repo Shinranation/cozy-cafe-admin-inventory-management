@@ -316,12 +316,12 @@ export default function MenuPage() {
   return (
     <div className="min-h-screen bg-[#F7F0E6] text-[#3B2F2A]">
       <main className="mx-auto max-w-6xl px-4 pb-10 sm:px-10 sm:pb-16">
-        <h2 className="py-12 text-center text-5xl font-extrabold tracking-tight text-gray-500/80 sm:py-28 sm:text-7xl">
+        <h2 className="py-10 text-center text-4xl font-extrabold tracking-tight text-gray-500/80 sm:py-28 sm:text-7xl">
           Promotions
         </h2>
 
         <section className="mx-auto max-w-4xl">
-          <h3 className="mb-6 text-center text-4xl font-extrabold sm:mb-10 sm:text-5xl">Menu</h3>
+          <h3 className="mb-5 text-center text-3xl font-extrabold sm:mb-10 sm:text-5xl">Menu</h3>
 
           {!configured && (
             <p className="mb-8 text-center text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">

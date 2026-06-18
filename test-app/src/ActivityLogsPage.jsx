@@ -139,21 +139,21 @@ export default function ActivityLogsPage() {
   }, [logs])
 
   return (
-    <main className="min-h-screen bg-[#FDFBF4] px-4 py-10 font-sans text-gray-700">
+    <main className="min-h-screen bg-[#FDFBF4] px-3 py-6 font-sans text-gray-700 sm:px-4 sm:py-10">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <header className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between sm:mb-10 sm:gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#D98C5F]">
               Admin activity trail
             </p>
-            <h1 className="mt-2 text-5xl font-bold text-gray-600 md:text-6xl">Activity Logs</h1>
+            <h1 className="mt-2 text-4xl font-bold text-gray-600 md:text-6xl">Activity Logs</h1>
           </div>
 
           <button
             type="button"
             onClick={() => void loadLogs()}
             disabled={!configured || loading}
-            className="w-fit rounded-full bg-[#3B2F2A] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-fit rounded-full bg-[#3B2F2A] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
           >
             {loading ? 'Loading...' : 'Refresh'}
           </button>
@@ -171,8 +171,8 @@ export default function ActivityLogsPage() {
           </p>
         )}
 
-        <section className="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_1fr_auto]">
-          <label className="text-xs font-bold uppercase tracking-wide text-gray-500">
+        <section className="mb-5 grid grid-cols-2 gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:mb-6 sm:gap-4 sm:p-4 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:text-xs">
             Area
             <select
               value={areaFilter}
@@ -187,7 +187,7 @@ export default function ActivityLogsPage() {
             </select>
           </label>
 
-          <label className="text-xs font-bold uppercase tracking-wide text-gray-500">
+          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:text-xs">
             Action
             <select
               value={actionFilter}
@@ -202,7 +202,7 @@ export default function ActivityLogsPage() {
             </select>
           </label>
 
-          <label className="text-xs font-bold uppercase tracking-wide text-gray-500">
+          <label className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:text-xs md:col-span-1">
             Email
             <input
               type="search"
@@ -214,7 +214,7 @@ export default function ActivityLogsPage() {
           </label>
 
           <div className="flex items-end">
-            <p className="rounded-lg border border-[#D98C5F]/20 bg-[#FFF7F1] px-4 py-2 text-sm font-bold text-gray-700">
+            <p className="rounded-lg border border-[#D98C5F]/20 bg-[#FFF7F1] px-3 py-2 text-xs font-bold text-gray-700 sm:px-4 sm:text-sm">
               {logs.length} shown
             </p>
           </div>
@@ -247,7 +247,7 @@ export default function ActivityLogsPage() {
 
         <div className="space-y-3">
           {logs.map((log) => (
-            <article key={log.activity_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <article key={log.activity_id} className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2">

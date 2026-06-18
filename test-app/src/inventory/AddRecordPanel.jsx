@@ -19,18 +19,18 @@ export default function AddRecordPanel({
   setCustomMenuCategory,
 }) {
   return (
-    <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+    <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:mb-8 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-bold text-gray-800">Add Record</h3>
+          <h3 className="text-base font-bold text-gray-800 sm:text-lg">Add Record</h3>
           <p className="text-xs text-gray-500">Ingredients go to inventory. Menu items go to menu.</p>
         </div>
 
-        <div className="grid grid-cols-3 overflow-hidden rounded-full border border-gray-300 bg-gray-50 p-1 text-xs font-bold">
+        <div className="grid grid-cols-3 overflow-hidden rounded-full border border-gray-300 bg-gray-50 p-1 text-[10px] font-bold sm:text-xs">
           <button
             type="button"
             onClick={() => setAddMode('ingredient')}
-            className={`rounded-full px-4 py-2 transition ${
+            className={`rounded-full px-2 py-1.5 transition sm:px-4 sm:py-2 ${
               addMode === 'ingredient' ? 'bg-[#D98C5F] text-white shadow-sm' : 'text-gray-600'
             }`}
           >
@@ -39,7 +39,7 @@ export default function AddRecordPanel({
           <button
             type="button"
             onClick={() => setAddMode('menu')}
-            className={`rounded-full px-4 py-2 transition ${
+            className={`rounded-full px-2 py-1.5 transition sm:px-4 sm:py-2 ${
               addMode === 'menu' ? 'bg-[#D98C5F] text-white shadow-sm' : 'text-gray-600'
             }`}
           >
@@ -48,7 +48,7 @@ export default function AddRecordPanel({
           <button
             type="button"
             onClick={() => setAddMode('archived')}
-            className={`rounded-full px-4 py-2 transition ${
+            className={`rounded-full px-2 py-1.5 transition sm:px-4 sm:py-2 ${
               addMode === 'archived' ? 'bg-[#D98C5F] text-white shadow-sm' : 'text-gray-600'
             }`}
           >
@@ -62,8 +62,8 @@ export default function AddRecordPanel({
           Archived records are hidden from active inventory and menu lists. Permanent delete is available below for rows you no longer need.
         </div>
       ) : addMode === 'ingredient' ? (
-        <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_0.7fr_0.7fr_0.7fr_0.7fr_auto]">
-          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-[1.2fr_1fr_0.7fr_0.7fr_0.7fr_0.7fr_auto]">
+          <label className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:col-span-1">
             Ingredient
             <input
               type="text"
@@ -75,7 +75,7 @@ export default function AddRecordPanel({
             />
           </label>
 
-          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+          <label className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:col-span-1">
             Classification
             <input
               type="text"
@@ -145,14 +145,14 @@ export default function AddRecordPanel({
             type="button"
             onClick={handleAddIngredient}
             disabled={addingIngredient || !configured}
-            className="self-end rounded-full bg-[#D98C5F] px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="col-span-2 self-end rounded-full bg-[#D98C5F] px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1 sm:px-5 sm:py-2.5 sm:text-sm"
           >
             {addingIngredient ? 'Adding...' : 'Add Ingredient'}
           </button>
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-[1.1fr_1.3fr_0.7fr_0.7fr_1fr_1fr_0.8fr_auto]">
-          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-[1.1fr_1.3fr_0.7fr_0.7fr_1fr_1fr_0.8fr_auto]">
+          <label className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:col-span-1">
             Menu Item
             <input
               type="text"
@@ -164,7 +164,7 @@ export default function AddRecordPanel({
             />
           </label>
 
-          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+          <label className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:col-span-1">
             Description
             <input
               type="text"
@@ -176,7 +176,7 @@ export default function AddRecordPanel({
             />
           </label>
 
-          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+          <label className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:col-span-1">
             Price
             <input
               type="number"
@@ -293,7 +293,7 @@ export default function AddRecordPanel({
             type="button"
             onClick={handleAddMenuItem}
             disabled={addingMenuItem || uploadingNewMenuPhoto || removingNewMenuPhoto || !configured}
-            className="self-end rounded-full bg-[#D98C5F] px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="col-span-2 self-end rounded-full bg-[#D98C5F] px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1 sm:px-5 sm:py-2.5 sm:text-sm"
           >
             {addingMenuItem ? 'Adding...' : 'Add Menu'}
           </button>

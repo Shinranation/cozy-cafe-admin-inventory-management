@@ -363,7 +363,7 @@ export default function NewOrderPage({ onBack, onCancel }) {
     <main className="min-h-screen bg-[#FDFBF4] px-3 py-6 font-sans text-gray-700 sm:px-4 sm:py-10">
       <div className="mx-auto max-w-[90rem]">
         <header className="mb-6 text-center sm:mb-10">
-          <h1 className="text-5xl font-bold leading-tight text-gray-500/80 md:text-7xl">New Order</h1>
+          <h1 className="text-4xl font-bold leading-tight text-gray-500/80 sm:text-5xl md:text-7xl">New Order</h1>
           {onCancel && (
             <button
               type="button"
@@ -741,7 +741,7 @@ export default function NewOrderPage({ onBack, onCancel }) {
                   onClick={() => void handleConfirmOrder()}
                   disabled={totalItems === 0 || confirmBusy || !configured || menuLoading}
                   className={[
-                    'mt-4 w-full rounded-full px-8 py-4 font-extrabold shadow-md transition',
+                    'mt-4 w-full rounded-full px-6 py-3 text-sm font-extrabold shadow-md transition sm:px-8 sm:py-4 sm:text-base',
                     totalItems === 0 || confirmBusy || !configured || menuLoading
                       ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
                       : 'bg-[#D98C5F] text-white hover:opacity-90',

@@ -130,4 +130,17 @@
     background: var(--cozy-sand);
     box-shadow: 0 6px 16px rgba(59, 47, 42, 0.12);
   }
+
+  @media (max-width: 640px) {
+    .cozy-btn {
+      min-height: 2rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+    }
+
+    .cozy-icon-btn {
+      min-height: 2.25rem;
+      min-width: 2.25rem;
+    }
+  }
 }

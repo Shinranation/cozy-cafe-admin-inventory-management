@@ -280,19 +280,19 @@ export default function ReceiptsPage({ onBackToOrders }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#FDFBF4] py-10 px-4 font-sans text-gray-700">
-      <div className="max-w-6xl mx-auto">
-        <header className="text-center mb-12">
-          <h1 className="text-6xl md:text-7xl font-bold text-gray-500/80 leading-tight">
+    <main className="min-h-screen bg-[#FDFBF4] px-3 py-6 font-sans text-gray-700 sm:px-4 sm:py-10">
+      <div className="mx-auto max-w-6xl">
+        <header className="mb-8 text-center sm:mb-12">
+          <h1 className="text-4xl font-bold leading-tight text-gray-500/80 sm:text-5xl md:text-7xl">
             Admin Dashboard <br /> Receipts
           </h1>
         </header>
 
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4 px-2">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 px-1 sm:mb-8 sm:gap-4 sm:px-2">
           <button
             type="button"
             onClick={() => onBackToOrders?.()}
-            className="inline-flex items-center rounded-full border border-gray-400/40 bg-white px-6 py-3 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50"
+            className="inline-flex items-center rounded-full border border-gray-400/40 bg-white px-5 py-2.5 text-xs font-bold text-gray-700 shadow-sm transition hover:bg-gray-50 sm:px-6 sm:py-3 sm:text-sm"
           >
             Back to orders
           </button>
@@ -303,7 +303,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
                 setLoading(true)
                 load().finally(() => setLoading(false))
               }}
-              className="rounded-full border border-[#D98C5F]/40 bg-white px-5 py-2.5 text-sm font-bold text-[#D98C5F] shadow-sm transition hover:bg-[#FFF7F1] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full border border-[#D98C5F]/40 bg-white px-4 py-2 text-xs font-bold text-[#D98C5F] shadow-sm transition hover:bg-[#FFF7F1] disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
               disabled={loading || !configured}
             >
               Refresh
@@ -311,12 +311,12 @@ export default function ReceiptsPage({ onBackToOrders }) {
           )}
         </div>
 
-        <div className="mb-8 flex flex-wrap gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm">
+        <div className="mb-5 flex flex-wrap gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm sm:mb-8">
           <button
             type="button"
             onClick={() => setActiveTab('receipts')}
             className={[
-              'rounded-xl px-5 py-2.5 text-sm font-extrabold transition',
+              'rounded-xl px-4 py-2 text-xs font-extrabold transition sm:px-5 sm:py-2.5 sm:text-sm',
               activeTab === 'receipts'
                 ? 'bg-[#3B2F2A] text-white'
                 : 'bg-white text-gray-600 hover:bg-[#FFF7F1]',
@@ -328,7 +328,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
             type="button"
             onClick={() => setActiveTab('soldItems')}
             className={[
-              'rounded-xl px-5 py-2.5 text-sm font-extrabold transition',
+              'rounded-xl px-4 py-2 text-xs font-extrabold transition sm:px-5 sm:py-2.5 sm:text-sm',
               activeTab === 'soldItems'
                 ? 'bg-[#3B2F2A] text-white'
                 : 'bg-white text-gray-600 hover:bg-[#FFF7F1]',
@@ -362,7 +362,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
 
         {deleteDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+            <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
               <h3 className="text-lg font-bold text-gray-900">Void Receipt History</h3>
               <p className="mt-2 text-sm text-gray-600">
                 This voids {deleteDialog.orderCount} received receipt record{deleteDialog.orderCount !== 1 ? 's' : ''} from {deleteDialog.groups.length} selected date{deleteDialog.groups.length !== 1 ? 's' : ''}. The original receipt rows stay in the database, and matching sale inventory deductions are restored.
@@ -445,11 +445,11 @@ export default function ReceiptsPage({ onBackToOrders }) {
         )}
 
         {!loading && !error && dateGroups.length > 0 && (
-          <div className="sticky top-3 z-20 mt-6 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+          <div className="sticky top-3 z-20 mt-5 rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:mt-6 sm:p-4">
             <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-500">
               Dates
             </p>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
               <p className="text-xs font-semibold text-gray-500">
                 {deleteDateMode ? 'Void mode: choose one or more receipt dates, then confirm voiding.' : 'Choose a date to view receipts.'}
               </p>
@@ -459,7 +459,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
                     type="button"
                     onClick={openSelectedDeleteDialog}
                     disabled={selectedDeleteDateGroups.length === 0}
-                    className="rounded-full bg-red-600 px-4 py-2 text-xs font-extrabold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-full bg-red-600 px-3 py-1.5 text-[10px] font-extrabold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4 sm:py-2 sm:text-xs"
                   >
                     Void Selected Receipts ({selectedDeleteDateGroups.length})
                   </button>
@@ -472,7 +472,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
                     setSelectedDeleteDateIds([])
                   }}
                   className={[
-                    'rounded-full px-4 py-2 text-xs font-extrabold transition',
+                    'rounded-full px-3 py-1.5 text-[10px] font-extrabold transition sm:px-4 sm:py-2 sm:text-xs',
                     deleteDateMode
                       ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                       : 'border border-red-200 bg-white text-red-700 hover:bg-red-50',
@@ -482,7 +482,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
                 </button>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {dateGroups.map((group) => {
                 const selectedForDelete = selectedDeleteDateIds.includes(group.id)
 
@@ -492,7 +492,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
                   type="button"
                   onClick={() => handleDateButton(group)}
                   className={[
-                    'rounded-full border px-3 py-1.5 text-xs font-bold transition',
+                    'rounded-full border px-2.5 py-1 text-[10px] font-bold transition sm:px-3 sm:py-1.5 sm:text-xs',
                     deleteDateMode
                       ? selectedForDelete
                         ? 'border-transparent bg-red-600 text-white'
@@ -514,7 +514,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
           {selectedDateGroup ? (
             <section key={selectedDateGroup.id} className="space-y-5">
               <div className="flex flex-wrap items-center gap-2 px-2">
-                <h2 className="text-2xl font-bold text-gray-700">{selectedDateGroup.name}</h2>
+                <h2 className="text-xl font-bold text-gray-700 sm:text-2xl">{selectedDateGroup.name}</h2>
                 <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-gray-500">
                   {selectedDateGroup.orders.length} order{selectedDateGroup.orders.length !== 1 ? 's' : ''}
                 </span>
@@ -528,20 +528,20 @@ export default function ReceiptsPage({ onBackToOrders }) {
                   <button
                     type="button"
                     onClick={() => setExpandedOrderId(isExpanded ? null : order.order_id)}
-                    className="flex w-full flex-wrap items-center gap-4 rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm transition hover:border-[#D98C5F]/60 hover:bg-[#FFF7F1]/60"
+                    className="flex w-full flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#D98C5F]/60 hover:bg-[#FFF7F1]/60 sm:gap-4 sm:px-5 sm:py-4"
                     aria-expanded={isExpanded}
                   >
-                    <span className="rounded-full bg-[#D9C5B2] px-5 py-2 text-sm font-extrabold text-gray-700">
+                    <span className="rounded-full bg-[#D9C5B2] px-4 py-1.5 text-xs font-extrabold text-gray-700 sm:px-5 sm:py-2 sm:text-sm">
                       Order #{String(order.order_id).padStart(3, '0')}
                     </span>
-                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-900">
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-emerald-900 sm:px-3 sm:text-[10px]">
                       Received
                     </span>
                     <span className="text-xs font-bold text-gray-500">
                       {timeLabel(order.created_at)}
                     </span>
-                    <span className="min-w-[12rem] flex-1">
-                      <span className="block text-base font-extrabold text-gray-800">
+                    <span className="min-w-[10rem] flex-1">
+                      <span className="block text-sm font-extrabold text-gray-800 sm:text-base">
                         {order.customer_display}
                       </span>
                       <span className="mt-1 block truncate text-xs font-semibold text-gray-500">
@@ -559,7 +559,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
                   </button>
 
                   {isExpanded ? (
-                  <div className="mt-3 bg-white border-2 border-[#D98C5F]/40 rounded-[2rem] p-6 shadow-sm">
+                  <div className="mt-3 rounded-2xl border border-[#D98C5F]/40 bg-white p-4 shadow-sm sm:rounded-[2rem] sm:border-2 sm:p-6">
                     <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 pb-4">
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
