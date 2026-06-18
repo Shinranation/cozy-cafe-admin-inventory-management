@@ -8,9 +8,11 @@ https://cozy-cafe-admin.vercel.app
 
 ## Demo Video
 
-Watch the project demo here:
+Click the preview below to watch the project demo:
 
-[The Cozzy Cup Cafe Admin Demo](https://drive.google.com/file/d/1UxkDy-wD0IoRQep8cs4I-Llp-McwrHDK/view?usp=sharing)
+[![The Cozzy Cup Cafe Admin Demo](docs/screenshots/promotions-menu.png)](https://drive.google.com/file/d/1UxkDy-wD0IoRQep8cs4I-Llp-McwrHDK/view?usp=sharing)
+
+[Open demo video](https://drive.google.com/file/d/1UxkDy-wD0IoRQep8cs4I-Llp-McwrHDK/view?usp=sharing)
 
 ## Features
 
