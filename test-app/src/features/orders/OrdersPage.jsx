@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
+import { supabaseConfigured } from '../../lib/supabaseClient.js'
+import { parseRpcArray } from '../../shared/rpc.js'
+import { listPendingOrdersWithItems, markOrderReceived } from './ordersApi.js'
 
 function getWaitMs(createdAt, nowMs) {
   const createdMs = new Date(createdAt).getTime()
@@ -25,20 +27,6 @@ function waitBadgeClass(waitMs) {
   return 'bg-emerald-100 text-emerald-900 border-emerald-300/70'
 }
 
-function parseRpcJsonArray(data) {
-  if (data == null) return []
-  if (Array.isArray(data)) return data
-  if (typeof data === 'string') {
-    try {
-      const p = JSON.parse(data)
-      return Array.isArray(p) ? p : []
-    } catch {
-      return []
-    }
-  }
-  return []
-}
-
 export default function OrdersPage({ onNewOrder, onOpenReceipts, refreshKey = 0 }) {
   const configured = supabaseConfigured()
   const [orders, setOrders] = useState(/** @type {any[]} */ ([]))
@@ -48,19 +36,18 @@ export default function OrdersPage({ onNewOrder, onOpenReceipts, refreshKey = 0 
   const [nowMs, setNowMs] = useState(() => Date.now())
 
   const load = useCallback(async () => {
-    if (!supabase) return
     setError(null)
-    const { data, error: rpcErr } = await supabase.rpc('list_pending_orders_with_items')
+    const { data, error: rpcErr } = await listPendingOrdersWithItems()
     if (rpcErr) {
       setError(rpcErr.message)
       setOrders([])
       return
     }
-    setOrders(parseRpcJsonArray(data))
+    setOrders(parseRpcArray(data))
   }, [])
 
   useEffect(() => {
-    if (!configured || !supabase) return
+    if (!configured) return
     let cancelled = false
     void (async () => {
       setLoading(true)
@@ -78,10 +65,9 @@ export default function OrdersPage({ onNewOrder, onOpenReceipts, refreshKey = 0 
   }, [])
 
   async function handleReceived(orderId) {
-    if (!supabase) return
     setBusyOrderId(orderId)
     setError(null)
-    const { error: rpcErr } = await supabase.rpc('mark_order_received', { p_order_id: orderId })
+    const { error: rpcErr } = await markOrderReceived(orderId)
     setBusyOrderId(null)
     if (rpcErr) {
       setError(rpcErr.message)

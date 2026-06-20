@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
+import { supabase, supabaseConfigured } from '../../lib/supabaseClient.js'
 
 export default function Login({ onClose, onGoToSignup, adminSignedIn, signedInEmail }) {
   const [status, setStatus] = useState(null)

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase, supabaseConfigured, defaultPosCashierId } from './lib/supabaseClient.js'
+import { supabaseConfigured } from '../../lib/supabaseClient.js'
+import { firstMenuItem, rootCategory, sortSizeLabels, subCategory } from '../../shared/menuCategories.js'
+import { confirmPosOrder, listAvailableOrderMenuItems } from './newOrderApi.js'
 
 /** @typedef {{ item_id: number, name: string, size_label: string, price: number, category: string, availability_status: string, has_recipe: boolean }} MenuItemRow */
 
@@ -7,32 +9,8 @@ function menuItemLabel(item) {
   return item.size_label ? `${item.name} (${item.size_label})` : item.name
 }
 
-function splitCategory(category) {
-  return String(category || '')
-    .split('/')
-    .map((part) => part.trim())
-    .filter(Boolean)
-}
-
-function rootCategory(item) {
-  return splitCategory(item.category)[0] || 'Other'
-}
-
-function subCategory(item) {
-  const parts = splitCategory(item.category)
-  return parts.length > 1 ? parts.slice(1).join(' / ') : ''
-}
-
-function firstMenuItem(rows) {
-  return [...rows].sort((a, b) => a.item_id - b.item_id)[0] ?? null
-}
-
 function formatPrice(price) {
   return Number.isFinite(price) ? `PHP ${price.toFixed(2)}` : 'PHP --'
-}
-
-function sortSizeLabels(a, b) {
-  return Number.parseFloat(a) - Number.parseFloat(b) || a.localeCompare(b)
 }
 
 function MenuPreviewVisual({ active = false }) {
@@ -69,15 +47,10 @@ export default function NewOrderPage({ onBack, onCancel }) {
   const [guestDisplayName, setGuestDisplayName] = useState('')
 
   const loadMenu = useCallback(async () => {
-    if (!supabase) return
     setMenuError(null)
     setMenuLoading(true)
 
-    const { data, error } = await supabase
-      .from('menu')
-      .select('item_id,name,size_label,price,category,availability_status')
-      .order('category')
-      .order('name')
+    const { data, error } = await listAvailableOrderMenuItems()
 
     if (error) {
       setMenuError(error.message)
@@ -86,48 +59,12 @@ export default function NewOrderPage({ onBack, onCancel }) {
       return
     }
 
-    const menuIds = (data ?? [])
-      .map((r) => Number(r.item_id))
-      .filter((id) => Number.isFinite(id) && id > 0)
-    const recipeMenuIds = new Set()
-
-    if (menuIds.length > 0) {
-      const { data: recipeRows, error: recipeError } = await supabase
-        .from('menu_ingredients')
-        .select('menu_item_id')
-        .in('menu_item_id', menuIds)
-
-      if (!recipeError) {
-        for (const row of recipeRows ?? []) {
-          const id = Number(row.menu_item_id)
-          if (Number.isFinite(id)) recipeMenuIds.add(id)
-        }
-      }
-    }
-
-    setItems(
-      (data ?? [])
-        .map((r) => ({
-          item_id: Number(r.item_id),
-          name: String(r.name ?? ''),
-          size_label: String(r.size_label ?? ''),
-          price: Number(r.price) || 0,
-          category: String(r.category ?? ''),
-          availability_status: String(r.availability_status ?? ''),
-          has_recipe: recipeMenuIds.has(Number(r.item_id)),
-        }))
-        .filter(
-          (r) =>
-            Number.isFinite(r.item_id) &&
-            r.item_id > 0 &&
-            r.availability_status.toLowerCase() === 'available',
-        ),
-    )
+    setItems(data ?? [])
     setMenuLoading(false)
   }, [])
 
   useEffect(() => {
-    if (!configured || !supabase) return
+    if (!configured) return
     const timeoutId = window.setTimeout(() => {
       void loadMenu()
     }, 0)
@@ -283,7 +220,7 @@ export default function NewOrderPage({ onBack, onCancel }) {
   }
 
   async function handleConfirmOrder() {
-    if (!supabase || totalItems === 0) return
+    if (totalItems === 0) return
     setConfirmError(null)
     setStockMessage(null)
     setConfirmBusy(true)
@@ -293,11 +230,9 @@ export default function NewOrderPage({ onBack, onCancel }) {
       quantity: row.qty,
     }))
 
-    const { error } = await supabase.rpc('confirm_pos_order', {
-      p_cashier_id: defaultPosCashierId(),
-      p_client_id: null,
-      p_guest_display_name: guestDisplayName.trim() || null,
-      p_lines,
+    const { error } = await confirmPosOrder({
+      guestDisplayName,
+      lines: p_lines,
     })
 
     setConfirmBusy(false)

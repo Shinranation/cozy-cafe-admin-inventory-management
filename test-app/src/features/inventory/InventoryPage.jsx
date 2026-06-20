@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
-import AddRecordPanel from './inventory/AddRecordPanel.jsx'
-import ArchivedInventorySection from './inventory/ArchivedInventorySection.jsx'
-import IngredientInventorySection from './inventory/IngredientInventorySection.jsx'
-import InventoryModals from './inventory/InventoryModals.jsx'
-import MenuItemsSection from './inventory/MenuItemsSection.jsx'
-import { applyInventoryStockMovement, createInventoryIngredient } from './inventory/supabaseInventoryApi.js'
+import { supabase, supabaseConfigured } from '../../lib/supabaseClient.js'
+import AddRecordPanel from './AddRecordPanel.jsx'
+import ArchivedInventorySection from './ArchivedInventorySection.jsx'
+import IngredientInventorySection from './IngredientInventorySection.jsx'
+import InventoryModals from './InventoryModals.jsx'
+import MenuItemsSection from './MenuItemsSection.jsx'
+import { applyInventoryStockMovement, createInventoryIngredient } from './supabaseInventoryApi.js'
 import {
   mergeRealtimeRows,
   normalizeInventoryRow,
@@ -17,8 +17,8 @@ import {
   safeIntegerEnv,
   sortById,
   sortMenuById,
-} from './inventory/inventoryUtils.js'
-import { useInventoryDashboardData } from './inventory/useInventoryDashboardData.js'
+} from './inventoryUtils.js'
+import { useInventoryDashboardData } from './useInventoryDashboardData.js'
 
 /** @typedef {{ ingredient_id: number, name: string, classification: string, current_quantity: number, unit_of_measure: string, low_stock: number, is_active: boolean }} InventoryRow */
 /** @typedef {{ item_id: number, name: string, description: string, price: number, category: string, size_label: string, image_url: string, availability_status: string }} MenuRow */

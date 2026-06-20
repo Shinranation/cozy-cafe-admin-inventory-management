@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
+import { supabaseConfigured } from '../../lib/supabaseClient.js'
+import { listActivityLogs } from './activityLogsApi.js'
 
 const AREA_FILTERS = ['all', 'Inventory', 'Menu', 'Revenue', 'General']
 
@@ -94,22 +95,14 @@ export default function ActivityLogsPage() {
   const [emailFilter, setEmailFilter] = useState('')
 
   const loadLogs = useCallback(async () => {
-    if (!supabase) return
-
     setLoading(true)
     setError(null)
 
-    let query = supabase
-      .from('activity_logs')
-      .select('activity_id,created_at,actor_email,area,action,entity_type,entity_id,entity_name,description,metadata')
-      .order('created_at', { ascending: false })
-      .limit(200)
-
-    if (areaFilter !== 'all') query = query.eq('area', areaFilter)
-    if (actionFilter !== 'all') query = query.eq('action', actionFilter)
-    if (emailFilter.trim()) query = query.ilike('actor_email', `%${emailFilter.trim()}%`)
-
-    const { data, error: fetchError } = await query
+    const { data, error: fetchError } = await listActivityLogs({
+      areaFilter,
+      actionFilter,
+      emailFilter,
+    })
 
     if (fetchError) {
       setError(fetchError.message)
@@ -122,7 +115,7 @@ export default function ActivityLogsPage() {
   }, [actionFilter, areaFilter, emailFilter])
 
   useEffect(() => {
-    if (!configured || !supabase) return
+    if (!configured) return
     const timeoutId = window.setTimeout(() => {
       void loadLogs()
     }, 0)

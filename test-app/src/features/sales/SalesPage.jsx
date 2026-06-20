@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
+import { supabaseConfigured } from '../../lib/supabaseClient.js'
+import { parseRpcArray } from '../../shared/rpc.js'
+import { getCurrentUserEmail, listReceivedOrdersAndExpenses, resetRevenueData } from './salesApi.js'
 
 const MONTHS = [
   'January',
@@ -55,19 +57,6 @@ function emptyMonthRows() {
     orderCount: 0,
     expenseCount: 0,
   }))
-}
-
-function normalizeRpcArray(value) {
-  if (Array.isArray(value)) return value
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-  return []
 }
 
 const RESET_ACTION_PHRASE = 'RESET REVENUE'
@@ -229,15 +218,10 @@ export default function SalesPage() {
     resetInputs.scope.trim() === RESET_SCOPE_PHRASE
 
   const fetchFinancialData = useCallback(async () => {
-    if (!supabase) return
-
     setLoading(true)
     setFetchError(null)
 
-    const [receivedOrdersResult, expensesResult] = await Promise.all([
-      supabase.rpc('list_received_orders_with_items'),
-      supabase.from('expenses').select('expense_date,expense_name,amount,category'),
-    ])
+    const { receivedOrdersResult, expensesResult } = await listReceivedOrdersAndExpenses()
 
     if (receivedOrdersResult.error) {
       setFetchError(
@@ -250,7 +234,7 @@ export default function SalesPage() {
       return
     }
 
-    const nextOrders = normalizeRpcArray(receivedOrdersResult.data)
+    const nextOrders = parseRpcArray(receivedOrdersResult.data)
     const nextExpenses = expensesResult.error ? [] : expensesResult.data ?? []
     const nextYears = getAvailableYears(nextOrders, nextExpenses, currentYear)
 
@@ -266,7 +250,7 @@ export default function SalesPage() {
   }, [currentYear])
 
   useEffect(() => {
-    if (!configured || !supabase) return
+    if (!configured) return
     const timeoutId = window.setTimeout(() => {
       void fetchFinancialData()
     }, 0)
@@ -275,18 +259,17 @@ export default function SalesPage() {
   }, [configured, fetchFinancialData])
 
   const openResetDialog = useCallback(async () => {
-    if (!supabase) return
     setResetMessage(null)
     setFetchError(null)
     setResetInputs({ email: '', action: '', scope: '' })
 
-    const { data, error } = await supabase.auth.getUser()
-    if (error || !data.user?.email) {
+    const { email, error } = await getCurrentUserEmail()
+    if (error || !email) {
       setFetchError(error?.message ?? 'Could not confirm the signed-in account email.')
       return
     }
 
-    setResetEmail(data.user.email)
+    setResetEmail(email)
     setResetDialogOpen(true)
   }, [])
 
@@ -295,16 +278,16 @@ export default function SalesPage() {
   }, [])
 
   const handleResetRevenueData = useCallback(async () => {
-    if (!supabase || !resetReady) return
+    if (!resetReady) return
 
     setResetBusy(true)
     setFetchError(null)
     setResetMessage(null)
 
-    const { data, error } = await supabase.rpc('reset_revenue_data', {
-      p_confirm_email: resetInputs.email.trim(),
-      p_confirm_action: resetInputs.action.trim(),
-      p_confirm_scope: resetInputs.scope.trim(),
+    const { data, error } = await resetRevenueData({
+      confirmEmail: resetInputs.email.trim(),
+      confirmAction: resetInputs.action.trim(),
+      confirmScope: resetInputs.scope.trim(),
     })
 
     setResetBusy(false)

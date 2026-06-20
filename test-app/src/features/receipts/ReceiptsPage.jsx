@@ -1,19 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import SoldItemsReportPage from './SoldItemsReportPage.jsx'
-import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
-
-function parseOrders(data) {
-  if (Array.isArray(data)) return data
-  if (typeof data === 'string') {
-    try {
-      const parsed = JSON.parse(data)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-  return Array.isArray(data) ? data : []
-}
+import { supabaseConfigured } from '../../lib/supabaseClient.js'
+import { parseRpcArray } from '../../shared/rpc.js'
+import { getCurrentUserEmail, listReceivedOrdersWithItems, runReceiptOrderAction } from './receiptsApi.js'
 
 function dateLabel(createdAt) {
   const date = new Date(createdAt)
@@ -108,19 +97,18 @@ export default function ReceiptsPage({ onBackToOrders }) {
   const [activeTab, setActiveTab] = useState('receipts')
 
   const load = useCallback(async () => {
-    if (!supabase) return
     setError(null)
-    const { data, error: rpcErr } = await supabase.rpc('list_received_orders_with_items')
+    const { data, error: rpcErr } = await listReceivedOrdersWithItems()
     if (rpcErr) {
       setError(rpcErr.message)
       setOrders([])
       return
     }
-    setOrders(parseOrders(data))
+    setOrders(parseRpcArray(data))
   }, [])
 
   useEffect(() => {
-    if (!configured || !supabase) {
+    if (!configured) {
       const timeoutId = window.setTimeout(() => setLoading(false), 0)
       return () => window.clearTimeout(timeoutId)
     }
@@ -200,19 +188,19 @@ export default function ReceiptsPage({ onBackToOrders }) {
 
   async function openDeleteDialog(receiptOrders, actionType = 'revert') {
     const validOrders = receiptOrders.filter((order) => Number.isFinite(Number(order?.order_id)))
-    if (!supabase || validOrders.length === 0 || !RECEIPT_ACTIONS[actionType]) return
+    if (validOrders.length === 0 || !RECEIPT_ACTIONS[actionType]) return
 
     setError(null)
     setDeleteMessage(null)
     setDeleteInputs({ email: '', action: '', scope: '' })
 
-    const { data, error: userError } = await supabase.auth.getUser()
-    if (userError || !data.user?.email) {
+    const { email, error: userError } = await getCurrentUserEmail()
+    if (userError || !email) {
       setError(userError?.message ?? 'Could not confirm the signed-in account email.')
       return
     }
 
-    setDeleteEmail(data.user.email)
+    setDeleteEmail(email)
     setDeleteDialog({
       orders: validOrders,
       orderIds: validOrders.map((order) => Number(order.order_id)),
@@ -252,18 +240,19 @@ export default function ReceiptsPage({ onBackToOrders }) {
     deleteInputs.scope.trim() === receiptActionConfig.scopePhrase
 
   async function handleDeleteReceipts() {
-    if (!supabase || !deleteDialog || !deleteReady) return
+    if (!deleteDialog || !deleteReady) return
 
     setDeleteBusy(true)
     setError(null)
     setDeleteMessage(null)
 
     const actionConfig = RECEIPT_ACTIONS[deleteDialog.actionType] ?? RECEIPT_ACTIONS.revert
-    const { data, error: deleteError } = await supabase.rpc(actionConfig.rpc, {
-      p_order_ids: deleteDialog.orderIds,
-      p_confirm_email: deleteInputs.email.trim(),
-      p_confirm_action: deleteInputs.action.trim(),
-      p_confirm_scope: deleteInputs.scope.trim(),
+    const { data, error: deleteError } = await runReceiptOrderAction({
+      rpc: actionConfig.rpc,
+      orderIds: deleteDialog.orderIds,
+      confirmEmail: deleteInputs.email.trim(),
+      confirmAction: deleteInputs.action.trim(),
+      confirmScope: deleteInputs.scope.trim(),
     })
 
     if (deleteError) {

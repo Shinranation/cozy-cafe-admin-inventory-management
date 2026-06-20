@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
+import { supabaseConfigured } from '../../lib/supabaseClient.js'
+import { parseRpcArray } from '../../shared/rpc.js'
+import { listSoldItemsReport } from './soldItemsReportApi.js'
 
 function todayInputValue() {
   const date = new Date()
@@ -64,19 +66,6 @@ function formatMoney(value) {
 function safeNumber(value) {
   const number = Number(value)
   return Number.isFinite(number) ? number : 0
-}
-
-function parseReportRows(value) {
-  if (Array.isArray(value)) return value
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-  return []
 }
 
 function itemLabel(row) {
@@ -153,8 +142,6 @@ export default function SoldItemsReportPage({ embedded = false }) {
   }, [rows])
 
   const loadReport = useCallback(async () => {
-    if (!supabase) return
-
     if (!period.valid) {
       setRows([])
       setError('Choose a valid date range.')
@@ -165,23 +152,23 @@ export default function SoldItemsReportPage({ embedded = false }) {
     setLoading(true)
     setError(null)
 
-    const { data, error: reportError } = await supabase.rpc('list_sold_items_report', {
-      p_start_at: period.startIso,
-      p_end_at: period.endExclusiveIso,
+    const { data, error: reportError } = await listSoldItemsReport({
+      startAt: period.startIso,
+      endAt: period.endExclusiveIso,
     })
 
     if (reportError) {
       setRows([])
       setError(reportError.message)
     } else {
-      setRows(parseReportRows(data))
+      setRows(parseRpcArray(data))
     }
 
     setLoading(false)
   }, [period.endExclusiveIso, period.startIso, period.valid])
 
   useEffect(() => {
-    if (!configured || !supabase) {
+    if (!configured) {
       const timeoutId = window.setTimeout(() => setLoading(false), 0)
       return () => window.clearTimeout(timeoutId)
     }
@@ -194,7 +181,7 @@ export default function SoldItemsReportPage({ embedded = false }) {
   }, [configured, loadReport])
 
   useEffect(() => {
-    if (configured && supabase) {
+    if (configured) {
       return
     }
     const timeoutId = window.setTimeout(() => setRows([]), 0)

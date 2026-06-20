@@ -1,19 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase, supabaseConfigured } from './lib/supabaseClient.js'
-
-function parseRpcJsonArray(data) {
-  if (data == null) return []
-  if (Array.isArray(data)) return data
-  if (typeof data === 'string') {
-    try {
-      const parsed = JSON.parse(data)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-  return []
-}
+import { supabase, supabaseConfigured } from '../../lib/supabaseClient.js'
+import { firstMenuItem, rootCategory, subCategory } from '../../shared/menuCategories.js'
+import { parseRpcArray } from '../../shared/rpc.js'
+import { getPublicMenu } from './menuApi.js'
 
 function normalizeMenuRows(rows) {
   return rows
@@ -38,28 +27,8 @@ function normalizeMenuRows(rows) {
     )
 }
 
-function splitCategory(category) {
-  return String(category || '')
-    .split('/')
-    .map((part) => part.trim())
-    .filter(Boolean)
-}
-
-function rootCategory(item) {
-  return splitCategory(item.category)[0] || 'Other'
-}
-
-function subCategory(item) {
-  const parts = splitCategory(item.category)
-  return parts.length > 1 ? parts.slice(1).join(' / ') : ''
-}
-
 function formatPrice(price) {
   return Number.isFinite(price) ? `PHP ${price.toFixed(2)}` : 'PHP --'
-}
-
-function firstMenuItem(rows) {
-  return [...rows].sort((a, b) => a.id - b.id)[0] ?? null
 }
 
 function MenuPreviewVisual({ label, imageUrl = '', active = false }) {
@@ -98,8 +67,8 @@ export default function MenuPage() {
     if (!supabase) return
     setFetchError(null)
 
-    const { data, error } = await supabase.rpc('get_menu_public')
-    const nextItems = normalizeMenuRows(parseRpcJsonArray(data))
+    const { data, error } = await getPublicMenu()
+    const nextItems = normalizeMenuRows(parseRpcArray(data))
 
     if (nextItems.length > 0) {
       setItems(nextItems)
