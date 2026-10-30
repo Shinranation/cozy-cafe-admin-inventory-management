@@ -118,6 +118,10 @@ VITE_TX_REFERENCE_ID=1
 VITE_TX_CASHIER_ID=1
 ```
 
+## Public Demo Database
+
+See [the demo setup guide](supabase/demo/README.md) for a separate Supabase playground with sample data and public admin workflows. Run [setup.sql](supabase/demo/setup.sql) only in a new empty project, then configure the values in [.env.demo.example](.env.demo.example). The existing database is not modified by this setup.
+
 ## Temporary Public Access
 
 The frontend currently bypasses login and role checks so visitors can open every admin page. Login, signup, and sign-out controls are hidden. Supabase RLS and RPC authorization remain enforced; protected data and mutations still require an authorized session. This frontend bypass does not grant anonymous database access.

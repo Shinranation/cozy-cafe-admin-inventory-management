@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabaseConfigured } from '../../lib/supabaseClient.js'
+import { demoMode, supabaseConfigured } from '../../lib/supabaseClient.js'
 import { parseRpcArray } from '../../shared/rpc.js'
 import { getCurrentUserEmail, listReceivedOrdersAndExpenses, resetRevenueData } from './salesApi.js'
 
@@ -410,7 +410,7 @@ export default function SalesPage() {
 
               <div className="mt-5 space-y-4">
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                  Account Email
+                  {demoMode ? 'Type demo@example.com to confirm' : 'Account Email'}
                   <input
                     type="text"
                     value={resetInputs.email}

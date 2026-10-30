@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import SoldItemsReportPage from './SoldItemsReportPage.jsx'
-import { supabaseConfigured } from '../../lib/supabaseClient.js'
+import { demoMode, supabaseConfigured } from '../../lib/supabaseClient.js'
 import { parseRpcArray } from '../../shared/rpc.js'
 import { getCurrentUserEmail, listReceivedOrdersWithItems, runReceiptOrderAction } from './receiptsApi.js'
 
@@ -397,7 +397,7 @@ export default function ReceiptsPage({ onBackToOrders }) {
 
               <div className="mt-5 space-y-4">
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                  Account Email
+                  {demoMode ? 'Type demo@example.com to confirm' : 'Account Email'}
                   <input
                     type="text"
                     value={deleteInputs.email}

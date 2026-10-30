@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabaseClient.js'
+import { demoMode, demoConfirmationEmail, supabase } from '../../lib/supabaseClient.js'
 
 export async function listReceivedOrdersWithItems() {
   if (!supabase) return { data: [], error: null }
@@ -6,6 +6,7 @@ export async function listReceivedOrdersWithItems() {
 }
 
 export async function getCurrentUserEmail() {
+  if (demoMode) return { email: demoConfirmationEmail, error: null }
   if (!supabase) return { email: null, error: null }
 
   const { data, error } = await supabase.auth.getUser()
