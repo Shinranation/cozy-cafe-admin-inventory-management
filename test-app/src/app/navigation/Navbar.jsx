@@ -4,35 +4,22 @@ const navBtn =
   'rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-[#D98C5F]/50 hover:bg-[#FFF7F1]'
 
 const navItems = [
-  { page: 'menu', label: 'Menu', adminOnly: false },
-  { page: 'inventory', label: 'Inventory', adminOnly: true },
-  { page: 'sales', label: 'Sales', adminOnly: true },
-  { page: 'orders', label: 'Orders', adminOnly: true },
-  { page: 'receipts', label: 'Receipts', adminOnly: true },
-  { page: 'activityLogs', label: 'Activity Logs', adminOnly: true },
+  { page: 'menu', label: 'Menu' },
+  { page: 'inventory', label: 'Inventory' },
+  { page: 'sales', label: 'Sales' },
+  { page: 'orders', label: 'Orders' },
+  { page: 'receipts', label: 'Receipts' },
+  { page: 'activityLogs', label: 'Activity Logs' },
 ]
 
-export default function Navbar({
-  adminSignedIn,
-  signedInUser,
-  onNavigate,
-  onSignOut,
-}) {
+export default function Navbar({ onNavigate }) {
   const [navMenuOpen, setNavMenuOpen] = useState(false)
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const navMenuRef = useRef(null)
-  const userMenuRef = useRef(null)
-
-  const visibleNavItems = navItems.filter((item) => !item.adminOnly || adminSignedIn)
 
   useEffect(() => {
     function handlePointerDown(event) {
       if (!navMenuRef.current?.contains(event.target)) {
         setNavMenuOpen(false)
-      }
-
-      if (!userMenuRef.current?.contains(event.target)) {
-        setUserMenuOpen(false)
       }
     }
 
@@ -46,22 +33,6 @@ export default function Navbar({
   function handleNavigate(page) {
     onNavigate(page)
     setNavMenuOpen(false)
-    setUserMenuOpen(false)
-  }
-
-  function handleUserButtonClick() {
-    if (!signedInUser) {
-      handleNavigate('login')
-      return
-    }
-
-    setUserMenuOpen((open) => !open)
-  }
-
-  function handleSignOut() {
-    setNavMenuOpen(false)
-    setUserMenuOpen(false)
-    onSignOut()
   }
 
   return (
@@ -71,7 +42,7 @@ export default function Navbar({
       </h1>
 
       <div className="hidden flex-wrap items-center justify-end gap-3 md:flex">
-        {visibleNavItems.map((item) => (
+        {navItems.map((item) => (
           <button
             key={item.page}
             className={navBtn}
@@ -81,41 +52,6 @@ export default function Navbar({
           </button>
         ))}
 
-        <div className="relative" ref={userMenuRef}>
-          <button
-            type="button"
-            className="grid h-9 w-9 place-items-center rounded-full border border-gray-200 bg-white text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50"
-            onClick={handleUserButtonClick}
-            title={signedInUser?.email ?? 'Login'}
-            aria-haspopup={signedInUser ? 'menu' : undefined}
-            aria-expanded={signedInUser ? userMenuOpen : undefined}
-          >
-            U
-          </button>
-
-          {signedInUser && userMenuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 top-11 z-50 w-64 rounded-xl border border-gray-200 bg-white p-2 text-sm shadow-lg"
-            >
-              <div className="border-b border-gray-100 px-3 py-2">
-                <p className="truncate font-semibold text-gray-800">{signedInUser.email}</p>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  {adminSignedIn ? 'Admin access' : 'Signed in'}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={handleSignOut}
-                className="mt-2 w-full rounded-lg px-3 py-2 text-left font-semibold text-red-600 transition hover:bg-red-50"
-              >
-                Sign out
-              </button>
-            </div>
-          )}
-        </div>
       </div>
 
       <div className="flex items-center gap-3 md:hidden" ref={navMenuRef}>
@@ -135,7 +71,7 @@ export default function Navbar({
 
         {navMenuOpen && (
           <div className="absolute right-4 top-[calc(100%+0.5rem)] z-50 w-64 rounded-xl border border-gray-200 bg-white p-2 text-sm shadow-lg">
-            {visibleNavItems.map((item) => (
+            {navItems.map((item) => (
               <button
                 key={item.page}
                 type="button"
@@ -146,27 +82,6 @@ export default function Navbar({
               </button>
             ))}
 
-            <div className="mt-2 border-t border-gray-100 pt-2">
-              <button
-                type="button"
-                className="w-full rounded-lg px-3 py-2 text-left font-semibold text-gray-800 transition hover:bg-[#FFF7F1]"
-                onClick={() => {
-                  if (!signedInUser) handleUserButtonClick()
-                }}
-              >
-                {signedInUser ? signedInUser.email : 'Login'}
-              </button>
-
-              {signedInUser && (
-                <button
-                  type="button"
-                  className="w-full rounded-lg px-3 py-2 text-left font-semibold text-red-600 transition hover:bg-red-50"
-                  onClick={handleSignOut}
-                >
-                  Sign out
-                </button>
-              )}
-            </div>
           </div>
         )}
       </div>

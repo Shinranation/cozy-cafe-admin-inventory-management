@@ -16,7 +16,7 @@ Click the preview below to watch the project demo:
 
 ## Features
 
-- Google login with admin-only access
+- Temporary public access to all admin pages without login
 - Menu item and category management
 - Inventory tracking with stock-in and stock-out
 - Recipe ingredient links for automatic stock deduction
@@ -117,6 +117,12 @@ SUPABASE_KEY=your-anon-public-key
 VITE_TX_REFERENCE_ID=1
 VITE_TX_CASHIER_ID=1
 ```
+
+## Temporary Public Access
+
+The frontend currently bypasses login and role checks so visitors can open every admin page. Login, signup, and sign-out controls are hidden. Supabase RLS and RPC authorization remain enforced; protected data and mutations still require an authorized session. This frontend bypass does not grant anonymous database access.
+
+To restore authentication, reconnect `useSession` and `useAdminRole` in `test-app/src/app/App.jsx` and restore the login controls and admin page guards.
 
 ## Admin Handoff
 
